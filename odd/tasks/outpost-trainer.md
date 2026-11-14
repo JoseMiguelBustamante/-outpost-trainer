@@ -33,7 +33,7 @@ and every decision splits one shared power budget between shield, oxygen, and co
 - [x] T3 — Core sim: power budget, shield/oxygen/comms meters, day/night cycle (commit: 0262974)
 - [x] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping (commit: abc85fe)
 - [ ] T5 — Scanner mechanic + resource deposits in 3D scene
-- [ ] T6 — UI: meters, decision panel, kid-friendly tutorial (ages 7-12)
+- [ ] T6 — UI: game over + tutorial + storm visual feedback + tooltips + polish + Web Audio sounds (scope locked with user 2026-11-14)
 - [ ] T7 — Science-behind-it page + build/deploy prep + presentation notes
 
 ## Evidence / commits

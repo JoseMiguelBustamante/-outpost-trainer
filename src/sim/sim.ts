@@ -33,6 +33,8 @@ export interface GameState {
   /** Seconds remaining of the active storm, if any. */
   stormRemaining: number;
   activeEvent: SimEvent | null;
+  /** Storms that ended without destroying the shield. */
+  stormsSurvived: number;
   gameOver: boolean;
   gameOverReason: string | null;
 }
@@ -104,7 +106,10 @@ export function tick(prev: GameState, dt: number): GameState {
   if (s.activeEvent && s.stormRemaining > 0) {
     shieldDelta -= s.activeEvent.shieldDamagePerSecond * dt;
     s.stormRemaining = Math.max(0, s.stormRemaining - dt);
-    if (s.stormRemaining === 0) s.activeEvent = null;
+    if (s.stormRemaining === 0) {
+      s.activeEvent = null;
+      if (s.shield > 0) s.stormsSurvived += 1;
+    }
   }
   s.shield = clamp(s.shield + shieldDelta);
 
@@ -125,6 +130,10 @@ export function tick(prev: GameState, dt: number): GameState {
   } else if (s.shield <= 0 && !s.gameOver) {
     s.gameOver = true;
     s.gameOverReason = 'shield';
+  } else if (s.elapsed >= s.cycleLength && !s.gameOver) {
+    // Survived one full lunar day+night cycle: mission accomplished.
+    s.gameOver = true;
+    s.gameOverReason = 'survived';
   }
 
   return s;
@@ -156,6 +165,7 @@ export function createInitialState(cycleLength = 120): GameState {
     allocation: { shield: 33.4, oxygen: 33.3, comms: 33.3 },
     stormRemaining: 0,
     activeEvent: null,
+    stormsSurvived: 0,
     gameOver: false,
     gameOverReason: null,
   };

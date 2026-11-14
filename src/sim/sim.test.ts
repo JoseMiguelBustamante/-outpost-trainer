@@ -132,3 +132,30 @@ describe('determinism', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('mission completion and storm survival (T6 scope)', () => {
+  it('sets gameOver reason "survived" when the full cycle completes', () => {
+    const s = runSeconds(createInitialState(60), 61, 0.5);
+    expect(s.gameOver).toBe(true);
+    expect(s.gameOverReason).toBe('survived');
+  });
+
+  it('counts survived storms when a storm ends without shield collapse', () => {
+    let s = createInitialState(600);
+    for (let i = 0; i < 5; i++) s = tick(s, 0.5);
+    // start a storm the shield can clearly survive
+    s = { ...s, activeEvent: { shieldDamagePerSecond: 0.2 }, stormRemaining: 5 };
+    s = runSeconds(s, 6, 0.5);
+    expect(s.stormsSurvived).toBe(1);
+    expect(s.gameOver).toBe(false);
+  });
+
+  it('does not count a storm that destroyed the shield as survived', () => {
+    let s = { ...createInitialState(600), shield: 0.05 };
+    s = { ...s, activeEvent: { shieldDamagePerSecond: 9 }, stormRemaining: 20 };
+    s = runSeconds(s, 22, 0.5);
+    expect(s.gameOver).toBe(true);
+    expect(s.gameOverReason).toBe('shield');
+    expect(s.stormsSurvived).toBe(0);
+  });
+});
