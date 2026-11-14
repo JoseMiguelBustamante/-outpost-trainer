@@ -29,7 +29,7 @@ and every decision splits one shared power budget between shield, oxygen, and co
 ## Tasks
 
 - [x] T1 — Scaffold: Vite + TS + Three.js project, git repo, ODD docs (commit: 1739cc7)
-- [ ] T2 — 3D scene: lunar terrain, outpost base, lighting, orbit camera
+- [x] T2 — 3D scene: lunar terrain, outpost base, lighting, orbit camera (commit: 14a5295)
 - [ ] T3 — Core sim: power budget, shield/oxygen/comms meters, day/night cycle
 - [ ] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping
 - [ ] T5 — Scanner mechanic + resource deposits in 3D scene
@@ -39,3 +39,4 @@ and every decision splits one shared power budget between shield, oxygen, and co
 ## Evidence / commits
 
 - T1: `1739cc7` chore: scaffold Vite + TypeScript + Three.js project — verified: `tsc --noEmit` OK, `vite build` OK
+- T2: `14a5295` feat: 3D lunar scene — verified: `tsc --noEmit` OK, `vite build` OK, dev server serves page. NOTE: gentle-ai-worker bootstrap failed outside its safe root; implemented inline by parent (fallback declared). Visual check by user pending (run `npm run dev`).
