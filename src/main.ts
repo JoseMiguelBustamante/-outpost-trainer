@@ -1,14 +1,19 @@
 // Lunar Outpost Trainer — entry point.
-// Bootstraps the 3D scene, the simulation, DONKI storms and the HUD loop.
+// Scene + simulation + DONKI storms + HUD + scanner gameplay.
 
+import * as THREE from 'three';
 import { createGameScene } from './scene';
 import { createInitialState, tick, type GameState } from './sim';
+import { applyHarvest } from './game';
+import { generateDeposits } from './game';
+import { createScanner, type ScannerHandle } from './scene/scanner';
 import { createHud } from './ui/hud';
 import { createAlerts } from './ui/alerts';
 import { fetchDonkiEvents, stormsFromEvents } from './donki/donki';
 import { scheduleStorms, updateStorms, type ScheduledStorm } from './donki/storms';
 
-const MISSION_LENGTH = 600; // game seconds (one full day+night at 120s per half? no: full cycle)
+const MISSION_LENGTH = 600; // game seconds for a full day+night cycle
+const SEED = 20261114;
 
 function boot(): void {
   const canvas = document.getElementById('game-canvas');
@@ -21,18 +26,63 @@ function boot(): void {
   const game = createGameScene(canvas);
   window.addEventListener('resize', game.handleResize);
 
+  // --- scanner + deposits ---
+  const deposits = generateDeposits(game.terrainConfig, SEED, 9, (x, z) => {
+    // USAR terrainHeight real (deterministic) via scene re-export
+    return terrainHeightAt(x, z);
+  });
+  let scanner: ScannerHandle | null = null;
+  const outpostPos = game.outpost.group.position.clone();
+  scanner = createScanner(deposits, outpostPos);
+  game.scene.add(scanner.group);
+
+  function terrainHeightAt(x: number, z: number): number {
+    // Re-exported from scene module for gameplay reuse.
+    return game.terrainHeight(x, z);
+  }
+
+  // Click-to-collect via raycast.
+  const ndc = new THREE.Vector2();
+  canvas.addEventListener('pointerdown', (ev: PointerEvent) => {
+    if (!scanner) return;
+    const rect = canvas.getBoundingClientRect();
+    ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    const deposit = scanner.pick(ndc, game.cameraRig.camera);
+    if (deposit) {
+      state = applyHarvest(state, deposit);
+      scanner.harvest(deposit);
+    }
+  });
+
+  // --- HUD ---
   let state: GameState = createInitialState(MISSION_LENGTH);
-  let schedule: ScheduledStorm[] = scheduleStorms([], MISSION_LENGTH, 20261114); // fallback until DONKI answers
+  let schedule: ScheduledStorm[] = scheduleStorms([], MISSION_LENGTH, SEED);
   const hud = createHud(hudEl, (alloc) => {
     state = { ...state, allocation: alloc };
   });
   const alerts = createAlerts(hudEl);
 
-  // Real data first: fetch recent DONKI events; on failure keep fallback.
+  const scanBtn = document.createElement('button');
+  scanBtn.className = 'hud-scan-btn';
+  scanBtn.textContent = '🔍 SCAN';
+  scanBtn.style.pointerEvents = 'auto';
+  scanBtn.addEventListener('click', () => scanner?.pulse());
+  const scanWrap = document.createElement('div');
+  scanWrap.style.position = 'absolute';
+  scanWrap.style.bottom = '24px';
+  scanWrap.style.left = '16px';
+  scanWrap.appendChild(scanBtn);
+  hudEl.appendChild(scanWrap);
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'e' || e.key === 'E') scanner?.pulse();
+  });
+
+  // --- DONKI ---
   fetchDonkiEvents()
     .then(({ cmes, gsts }) => {
       const storms = stormsFromEvents(cmes, gsts);
-      schedule = scheduleStorms(storms, MISSION_LENGTH, 20261114);
+      schedule = scheduleStorms(storms, MISSION_LENGTH, SEED);
       console.info(`[DONKI] loaded ${storms.length} real storms`);
     })
     .catch((err) => {
@@ -55,6 +105,7 @@ function boot(): void {
     }
     hud.update(state);
     alerts.update(schedule, state.elapsed);
+    scanner?.update(delta);
 
     game.update(delta);
     requestAnimationFrame(frame);

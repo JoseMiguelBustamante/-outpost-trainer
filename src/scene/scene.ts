@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { buildTerrain, type TerrainConfig } from './terrain';
+import { buildTerrain, terrainHeight, type TerrainConfig } from './terrain';
 import { buildOutpost, type OutpostBuild } from './outpost';
 import { buildLighting, buildStarfield, type LightingBuild } from './lighting';
 import { createCameraRig, type CameraRig } from './camera';
@@ -21,6 +21,10 @@ export interface GameScene {
   outpost: OutpostBuild;
   lighting: LightingBuild;
   cameraRig: CameraRig;
+  /** The underlying Three.js scene (for gameplay layers like scanner). */
+  scene: THREE.Scene;
+  /** Deterministic terrain height query for gameplay (deposits, scanner). */
+  terrainHeight: (x: number, z: number) => number;
 }
 
 /**
@@ -98,5 +102,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
     outpost,
     lighting,
     cameraRig,
+    scene,
+    terrainHeight: (x: number, z: number) => terrainHeight(x, z, TERRAIN_CONFIG),
   };
 }
