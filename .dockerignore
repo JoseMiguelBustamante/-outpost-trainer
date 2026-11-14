@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+.atl
+odd
+*.md
+docker-compose.yml
