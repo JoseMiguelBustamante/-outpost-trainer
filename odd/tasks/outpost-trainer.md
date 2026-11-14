@@ -31,7 +31,7 @@ and every decision splits one shared power budget between shield, oxygen, and co
 - [x] T1 — Scaffold: Vite + TS + Three.js project, git repo, ODD docs (commit: 1739cc7)
 - [x] T2 — 3D scene: lunar terrain, outpost base, lighting, orbit camera (commit: 14a5295)
 - [x] T3 — Core sim: power budget, shield/oxygen/comms meters, day/night cycle (commit: 0262974)
-- [ ] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping
+- [x] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping (commit: abc85fe)
 - [ ] T5 — Scanner mechanic + resource deposits in 3D scene
 - [ ] T6 — UI: meters, decision panel, kid-friendly tutorial (ages 7-12)
 - [ ] T7 — Science-behind-it page + build/deploy prep + presentation notes
@@ -41,3 +41,4 @@ and every decision splits one shared power budget between shield, oxygen, and co
 - T1: `1739cc7` chore: scaffold Vite + TypeScript + Three.js project — verified: `tsc --noEmit` OK, `vite build` OK
 - T2: `14a5295` feat: 3D lunar scene — verified: `tsc --noEmit` OK, `vite build` OK, dev server serves page. NOTE: gentle-ai-worker bootstrap failed outside its safe root; implemented inline by parent (fallback declared). Visual check by user pending (run `npm run dev`).
 - T3: `0262974` feat: core simulation loop — verified: vitest 16/16 (test-first: RED observed), tsc, vite build, server 200. Test-first applied: pure deterministic sim engine made RED→GREEN possible.
+- T4: `abc85fe` feat: DONKI integration — verified: vitest 31/31 (test-first on mappers+scheduler), tsc, vite build, server 200. Live findings: DEMO_KEY rate-limited (50/day) and gateway returns 200 with error object -> hardened non-list detection; CORS confirmed open (*). Embedded real fallback (CME 336km/s 2026-10-25, Gannon GST Kp 9.0 2024-05-10). For demo day: register a free NASA API key to show live data.
