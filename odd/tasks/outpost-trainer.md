@@ -28,7 +28,7 @@ and every decision splits one shared power budget between shield, oxygen, and co
 
 ## Tasks
 
-- [ ] T1 — Scaffold: Vite + TS + Three.js project, git repo, ODD docs
+- [x] T1 — Scaffold: Vite + TS + Three.js project, git repo, ODD docs (commit: 1739cc7)
 - [ ] T2 — 3D scene: lunar terrain, outpost base, lighting, orbit camera
 - [ ] T3 — Core sim: power budget, shield/oxygen/comms meters, day/night cycle
 - [ ] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping
@@ -38,4 +38,4 @@ and every decision splits one shared power budget between shield, oxygen, and co
 
 ## Evidence / commits
 
-- T1: (pending — commit first, then record hash)
+- T1: `1739cc7` chore: scaffold Vite + TypeScript + Three.js project — verified: `tsc --noEmit` OK, `vite build` OK
