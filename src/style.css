@@ -30,3 +30,82 @@ body {
   inset: 0;
   pointer-events: none;
 }
+
+/* --- HUD --- */
+.hud-root {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.hud-panel,
+.hud-alloc {
+  background: rgba(10, 12, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #e8ecf5;
+  font-size: 14px;
+  min-width: 240px;
+}
+
+.hud-meter {
+  display: grid;
+  grid-template-columns: 86px 1fr 30px;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.hud-track {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hud-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.2s ease;
+}
+
+.hud-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.hud-alloc-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.hud-alloc-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.hud-alloc-row input[type='range'] {
+  width: 100%;
+  accent-color: #f7b84f;
+}
+
+.hud-alloc-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
