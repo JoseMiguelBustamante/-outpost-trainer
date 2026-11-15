@@ -2,7 +2,7 @@
 // Pure helpers (gameOverTitle, gameOverDetail, missionSummary) are exported
 // for tests; the DOM wiring is thin and only runs in the browser.
 
-import type { GameState } from '../sim';
+import type { Difficulty, GameState } from '../sim';
 
 export type GameOverReason = 'oxygen' | 'shield' | 'survived' | string;
 
@@ -114,7 +114,7 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
     iconEl.textContent = won ? '🌕' : '💥';
     titleEl.textContent = gameOverTitle(reason);
     detailEl.textContent = gameOverDetail(reason);
-    scoreEl.textContent = missionSummary(state);
+    scoreEl.textContent = `${missionSummary(state)} · ${state.difficulty === 'challenge' ? 'Challenge' : 'Guided'}`;
     root.classList.add('show');
     retry.focus();
   };
@@ -132,7 +132,7 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
  */
 export function createTutorial(
   container: HTMLElement,
-  onStart: () => void,
+  onStart: (difficulty: Difficulty) => void,
 ): HTMLElement {
   const overlay = document.createElement('div');
   overlay.className = 'hud-overlay show tutorial';
@@ -164,7 +164,8 @@ export function createTutorial(
   for (const rule of [
     ['One power budget', 'shield, oxygen and comms share a single battery — every point matters.'],
     ['Storms are real', 'when the alarm sounds, move power to the shield.'],
-    ['SCAN', 'press the scan button to reveal resource deposits, then tap them to collect.'],
+    ['SCAN + LOG', 'scan to reveal deposits, then walk to them or tap to collect materials. Open LOG for named discoveries and NASA storm records.'],
+    ['Expedition stages', 'collect 3 deposits, sustain the crew through a storm, then survive the emergency. Completed stages reward repair materials.'],
   ] as const) {
     const li = document.createElement('li');
     const b = document.createElement('b');
@@ -175,10 +176,39 @@ export function createTutorial(
   }
   card.appendChild(rules);
 
+  let difficulty: Difficulty = 'guided';
+  const modes = document.createElement('fieldset');
+  modes.className = 'difficulty-options';
+  const legend = document.createElement('legend');
+  legend.textContent = 'Choose your difficulty';
+  modes.appendChild(legend);
+  for (const [value, label, description] of [
+    ['guided', '🧭 Guided', 'slower drain + cheaper repairs'],
+    ['challenge', '🔥 Challenge', 'less margin, faster decay'],
+  ] as const) {
+    const option = document.createElement('label');
+    option.className = 'difficulty-option';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'difficulty';
+    radio.value = value;
+    radio.checked = value === difficulty;
+    radio.addEventListener('change', () => { if (radio.checked) difficulty = value; });
+    const text = document.createElement('span');
+    const heading = document.createElement('strong');
+    heading.textContent = label;
+    const detail = document.createElement('small');
+    detail.textContent = description;
+    text.append(heading, detail);
+    option.append(radio, text);
+    modes.appendChild(option);
+  }
+  card.appendChild(modes);
+
   const start = document.createElement('button');
   start.className = 'overlay-cta';
   start.textContent = '🚀 Start mission';
-  start.addEventListener('click', onStart);
+  start.addEventListener('click', () => onStart(difficulty));
   card.appendChild(start);
 
   const science = document.createElement('a');

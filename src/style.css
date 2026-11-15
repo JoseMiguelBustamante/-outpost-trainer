@@ -70,7 +70,7 @@ body {
   top: 0;
   left: 0;
   width: fit-content;
-  max-width: calc(100% - 164px);
+  max-width: min(236px, calc(100% - 164px));
   border-radius: 12px;
   padding: 8px 12px;
 }
@@ -275,6 +275,8 @@ body {
   right: 0;
   display: flex;
   justify-content: center;
+  gap: 8px;
+  padding-inline: 12px;
   z-index: 10;
   pointer-events: none;
 }
@@ -375,6 +377,8 @@ input:focus-visible {
   padding: 22px;
   text-align: center;
   color: #e8ecf5;
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
 }
 
 .overlay-icon {
@@ -454,6 +458,79 @@ input:focus-visible {
 .hud-meter-label[title] {
   cursor: help;
 }
+
+/* Expedition status stays in flow below the unchanged mission goal. */
+.hud-objectives {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.objective-celebration { color: var(--oxygen); }
+.objective-celebration:not(:empty) { margin-top: 6px; }
+
+.hud-log-btn {
+  min-width: 80px;
+  padding-inline: 12px;
+  background: var(--panel-solid);
+}
+
+.hud-scan-btn:disabled { opacity: .5; cursor: default; }
+
+.difficulty-options {
+  border: 0;
+  text-align: left;
+  margin: 14px 0;
+  display: grid;
+  gap: 8px;
+}
+
+.difficulty-options legend { font-size: 13px; margin-bottom: 8px; color: var(--cyan); }
+.difficulty-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.difficulty-option:has(input:checked) { border-color: var(--cyan); background: #1d3f63; }
+.difficulty-option input { accent-color: var(--cyan); }
+.difficulty-option strong, .difficulty-option small { display: block; }
+.difficulty-option small { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+.logbook-panel {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  color: var(--text);
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.logbook-panel::backdrop { background: rgba(4, 6, 12, .85); }
+.logbook-panel h2 { font-size: 20px; margin-bottom: 16px; }
+.logbook-panel p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+.logbook-entries { list-style: none; margin-bottom: 16px; }
+.logbook-entries li {
+  padding-block: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.logbook-day { color: var(--cyan); font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
