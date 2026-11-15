@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outpost HUD — T6 design previews</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;background:#0a0e18;color:#e8ecf5;
+    display:flex;flex-direction:column;align-items:center;gap:18px;padding:32px 16px}
+  h1{font-size:20px}
+  p{color:#9aa7bd;font-size:14px;text-align:center;max-width:520px;line-height:1.5}
+  a.card{display:block;width:100%;max-width:420px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px 18px;
+    text-decoration:none;color:#e8ecf5}
+  a.card:hover{border-color:#7fd8ff}
+  a.card b{font-size:16px}
+  a.card span{display:block;color:#9aa7bd;font-size:13px;margin-top:4px;line-height:1.4}
+  .note{font-size:12px;color:#6d7a90}
+</style>
+</head>
+<body>
+<h1>Outpost HUD — T6 design previews</h1>
+<p>Three HUD directions for the game. Each preview has state buttons at the bottom:
+<b>Normal / Storm / Tutorial / Game over</b>. Pick one (or mix parts) to shape T6.</p>
+<a class="card" href="./01-mission-console.html"><b>01 · Mission Console</b>
+<span>Mission banner + compact meter chips + power drawer + prominent SCAN. Strongest guidance; most chrome.</span></a>
+<a class="card" href="./02-kid-arcade.html"><b>02 · Kid Arcade</b>
+<span>Fat gauges, giant round SCAN button, arcade storm splash. Max kid appeal; least precision.</span></a>
+<a class="card" href="./03-focus-telemetry.html"><b>03 · Focus Telemetry</b>
+<span>One thin status line that expands only under threat; clean 3D scene. Least hand-holding.</span></a>
+<p class="note">Design sources live in <code>design/outpost-hud-t6/</code> (repo). Scope: visual language of the reference only — no water/food systems (locked Core 4).</p>
+</body>
+</html>
