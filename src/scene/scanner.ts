@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import type { Deposit } from '../game';
 
+export const SCAN_RADIUS = 55;
+
 const COLOR_BY_TYPE: Record<Deposit['type'], string> = {
   oxygen: '#43d17c',
   sodium: '#f7b84f',
@@ -15,6 +17,8 @@ export interface ScannerHandle {
   update: (dt: number) => void;
   /** Trigger a scan ping from the outpost. */
   pulse: () => void;
+  /** Scale both the visual sweep and horizontal reveal reach (default 1). */
+  setRangeMultiplier: (multiplier: number) => void;
   /**
    * Raycast against deposit pick-spheres; returns the deposit id or null.
    * Deposits are pickable only after being revealed by a scan.
@@ -95,12 +99,13 @@ export function createScanner(
   pulse.position.copy(outpostPosition).setY(0.05);
   group.add(pulse);
   let pulseT = -1; // <0 idle
+  let rangeMultiplier = 1;
 
   const update = (dt: number): void => {
     if (pulseT >= 0) {
       pulseT += dt;
       const t = pulseT / 3.5; // 3.5s sweep over ~55 units
-      const radius = t * 55;
+      const radius = t * SCAN_RADIUS * rangeMultiplier;
       pulse.scale.setScalar(Math.max(0.01, radius));
       pulseMat.opacity = Math.max(0, 0.55 * (1 - t));
       if (t >= 1) pulseT = -1;
@@ -132,11 +137,15 @@ export function createScanner(
   return {
     group,
     update,
+    setRangeMultiplier: (multiplier) => {
+      rangeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+    },
     pulse: () => {
       pulseT = 0;
-      // Reveal every marker the pulse will have covered (kid-friendly: all).
+      // Reveal immediately, but only inside the sweep's actual horizontal reach.
       for (const m of markers) {
-        if (!m.deposit.harvested) m.mesh.visible = true;
+        if (!m.deposit.harvested && Math.hypot(m.deposit.x - outpostPosition.x,
+          m.deposit.z - outpostPosition.z) <= SCAN_RADIUS * rangeMultiplier) m.mesh.visible = true;
       }
     },
     pick: (ndc, camera) => {

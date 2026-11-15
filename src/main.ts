@@ -3,8 +3,9 @@
 
 import * as THREE from 'three';
 import { createGameScene } from './scene';
-import { createInitialState, tick, MAX_RESOURCE, type GameState } from './sim';
+import { createInitialState, tick, MAX_RESOURCE, buildModule, repairRover, MODULE_COSTS, ROVER_REPAIR_COST, type ModuleKind, type GameState } from './sim';
 import { applyHarvest, type Deposit } from './game';
+import { createModuleSlots, createRoverCondition } from './scene/modules';
 import { createPlayerAstronaut } from './scene/astronaut';
 import { createStormVisual } from './scene/storm-visual';
 import { generateDeposits } from './game';
@@ -49,6 +50,17 @@ function boot(): void {
     // Re-exported from scene module for gameplay reuse.
     return game.terrainHeight(x, z);
   }
+
+  // Pad ellipse (9.5 × 5.225): clear of structure footprints, pipes and x=0 chevrons.
+  const moduleKinds: ModuleKind[] = ['batteryBank', 'recycler', 'pylon'];
+  const moduleNames = { batteryBank: 'Battery Bank', recycler: 'Recycler', pylon: 'Shield Pylon' };
+  const moduleEffects = { batteryBank: '+40% battery capacity', recycler: 'free oxygen +0.8/s', pylon: 'no shield decay, free shield +0.5/s' };
+  const slots = createModuleSlots(game.scene, [new THREE.Vector3(-7, 0.09, 0),
+    new THREE.Vector3(3.7, 0.09, -2.6), new THREE.Vector3(2.2, 0.09, 4.3)]);
+  const baseColliders = [...game.outpost.colliders];
+  const rover = game.outpost.group.getObjectByName('rover')!;
+  const roverPosition = rover.getWorldPosition(new THREE.Vector3());
+  const roverCondition = createRoverCondition(rover);
 
   // Replace the presentation-only suit without changing the outpost builder's API.
   const staticAstronaut = game.outpost.group.getObjectByName('astronaut');
@@ -201,6 +213,14 @@ function boot(): void {
     logbook.update(entries);
     activeStorm = null;
     simAccumulator = 0;
+    slots.forEach((slot) => slot.reset());
+    game.outpost.colliders.splice(0, game.outpost.colliders.length, ...baseColliders);
+    roverCondition.setRepaired(false);
+    interaction.hidden = true;
+    currentInteraction = null;
+    keys.clear();
+    resetStick();
+    player.setPosition(outpostPos.x + 0.85, outpostPos.z + 2.8);
     // Reuse the scanner constructor so retry restores both deposit state and visuals.
     scanner?.group.removeFromParent();
     scanner?.group.traverse((object) => {
@@ -211,6 +231,7 @@ function boot(): void {
     deposits = generateDeposits(game.terrainConfig, SEED, 9, terrainHeightAt);
     scanner = createScanner(deposits, outpostPos);
     game.scene.add(scanner.group);
+    scanner.setRangeMultiplier(1);
     schedule = scheduleStorms(schedule, MISSION_LENGTH, SEED);
     alarmed.clear();
     endedHandled = false;
@@ -233,7 +254,7 @@ function boot(): void {
   const scanBtn = document.createElement('button');
   scanBtn.className = 'hud-scan-btn';
   scanBtn.textContent = '🔍 SCAN';
-  scanBtn.title = 'Reveal resources (E). Walk with WASD / arrows or the touch joystick to collect; clicking also works.';
+  scanBtn.title = 'Reveal resources within 55 units (E), or 110 after rover repair. Walk with WASD / arrows or joystick to collect. Build at cyan pads; repair the rover nearby.';
   scanBtn.style.pointerEvents = 'auto';
   scanBtn.addEventListener('click', () => scanner?.pulse());
   const scanWrap = document.createElement('div');
@@ -251,6 +272,66 @@ function boot(): void {
   hudEl.appendChild(scanWrap);
   window.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'e' || e.key === 'E') scanner?.pulse();
+  });
+
+  // A single proximity prompt serves all construction and rover interactions.
+  const interaction = document.createElement('div');
+  interaction.className = 'hud-build-prompt';
+  interaction.hidden = true;
+  const interactionText = document.createElement('span');
+  interactionText.setAttribute('aria-live', 'polite');
+  const interactionButton = document.createElement('button');
+  interactionButton.className = 'hud-scan-btn';
+  interaction.append(interactionText, interactionButton);
+  hudEl.appendChild(interaction);
+  let currentInteraction: number | 'rover' | null = null;
+  const distanceTo = (position: THREE.Vector3) => {
+    const playerPosition = player.getPosition();
+    return Math.hypot(playerPosition.x - position.x, playerPosition.z - position.z);
+  };
+  function updateInteraction(): void {
+    currentInteraction = null;
+    if (!paused && !state.gameOver) {
+      const candidates = slots.map((slot, index) => ({ target: index as number | 'rover',
+        distance: state.built[moduleKinds[index]] ? Infinity : distanceTo(slot.position) }));
+      candidates.push({ target: 'rover', distance: state.roverRepaired ? Infinity : distanceTo(roverPosition) });
+      candidates.sort((a, b) => a.distance - b.distance);
+      if (candidates[0].distance <= 2.5) currentInteraction = candidates[0].target;
+    }
+    interaction.hidden = currentInteraction === null;
+    if (currentInteraction === null) return;
+    const isRover = currentInteraction === 'rover';
+    const kind = isRover ? null : moduleKinds[currentInteraction as number];
+    const cost = kind ? MODULE_COSTS[kind] : ROVER_REPAIR_COST;
+    const affordable = state.materials >= cost;
+    interactionText.textContent = affordable
+      ? `${kind ? `Build ${moduleNames[kind]}` : 'Repair rover'} — ${cost} 🧪`
+      : `Not enough materials (have ${Number(state.materials.toFixed(2))}/${cost})`;
+    interactionButton.textContent = isRover ? 'REPAIR' : 'BUILD';
+    interactionButton.disabled = !affordable;
+  }
+  interactionButton.addEventListener('click', () => {
+    updateInteraction(); // Revalidate distance, balance and pause at activation time.
+    if (currentInteraction === null || interactionButton.disabled) return;
+    if (currentInteraction === 'rover') {
+      const next = repairRover(state);
+      if (next === state) return;
+      state = next;
+      roverCondition.setRepaired(true);
+      scanner?.setRangeMultiplier(2);
+      recordLog('Repaired: Rover — SCAN range ×2');
+    } else {
+      const index = currentInteraction;
+      const kind = moduleKinds[index];
+      const next = buildModule(state, kind);
+      if (next === state) return;
+      state = next;
+      slots[index].markBuilt(kind);
+      game.outpost.colliders.push({ x: slots[index].position.x, z: slots[index].position.z, r: 0.65 });
+      recordLog(`Built: ${moduleNames[kind]} — ${moduleEffects[kind]}`);
+    }
+    audio.harvest();
+    updateInteraction();
   });
 
   // --- DONKI ---
@@ -320,6 +401,9 @@ function boot(): void {
       for (const deposit of scanner?.nearby(player.getPosition()) ?? []) collect(deposit);
     }
     scanner?.update(delta);
+    slots.forEach((slot) => slot.update(paused ? 0 : delta));
+    roverCondition.update(paused ? 0 : delta);
+    updateInteraction();
 
     // DONKI maps a 1420 km/s CME to ~2.36 damage/s: / 2.7 gives ~0.87.
     const intensity = THREE.MathUtils.clamp((state.activeEvent?.shieldDamagePerSecond ?? 0) / 2.7, 0, 1);

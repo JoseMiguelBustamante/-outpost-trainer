@@ -343,6 +343,40 @@ input:focus-visible {
   .hud-alloc { width: min(230px, calc(100% - 144px - env(safe-area-inset-right))); }
 }
 
+.hud-modules {
+  color: var(--cyan);
+  font-size: 10px;
+  line-height: 1.5;
+  padding-inline: 6px;
+}
+
+.hud-build-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(82px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel-solid);
+  color: var(--text);
+  border: 1px solid var(--cyan);
+  border-radius: 12px;
+  font-size: 13px;
+  z-index: 21;
+  pointer-events: auto;
+}
+.hud-build-prompt[hidden] { display: none; }
+.hud-build-prompt .hud-scan-btn { min-width: 80px; padding-inline: 14px; }
+
+@media (max-width: 600px) {
+  /* Above the power drawer and joystick, never covering their touch targets. */
+  .hud-build-prompt { bottom: calc(340px + env(safe-area-inset-bottom)); }
+}
+
 /* --- Full-screen overlays (tutorial, game over) --- */
 .overlay-layer {
   position: absolute;

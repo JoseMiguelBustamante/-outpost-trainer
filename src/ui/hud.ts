@@ -3,7 +3,7 @@
 // Presentation lives in style.css (#hud children).
 
 import type { GameState, PowerAllocation } from '../sim';
-import { createInitialState, MAX_RESOURCE } from '../sim';
+import { createInitialState, MAX_RESOURCE, batteryCapacity } from '../sim';
 
 export interface HudHandle {
   root: HTMLElement;
@@ -20,7 +20,7 @@ const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: s
 const CHIPS = [
   ...METERS.map((meter) => ({ ...meter, critical: 20 })),
   { key: 'materials' as const, icon: '🧪', label: 'Materials', color: 'var(--battery)',
-    hint: 'Collected from deposits. One material repairs two meter points; repairs also need power.', critical: 15 },
+    hint: 'Collect deposits to fund repairs or build modules at cyan pads: Battery Bank 20, Recycler 25, Shield Pylon 20. Repair rover for 10 to double SCAN range.', critical: 15 },
 ];
 
 /** Keep the moved slider fixed and share the remaining budget proportionally. */
@@ -88,6 +88,10 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     panel.appendChild(row);
     bars.set(m.key, { row, fill, value });
   }
+
+  const modules = el('div', 'hud-modules');
+  modules.setAttribute('aria-label', 'Built modules');
+  panel.appendChild(modules);
 
   // battery + clock row
   const info = el('div', 'hud-info');
@@ -178,7 +182,11 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
       b.row.classList.toggle('crit', v < m.critical);
     }
     battery.textContent = `${Math.round(s.battery)}`;
-    batteryFill.style.width = `${(s.battery / MAX_RESOURCE) * 100}%`;
+    batteryFill.style.width = `${(s.battery / batteryCapacity(s)) * 100}%`;
+    battery.title = `Battery capacity: ${batteryCapacity(s)}`;
+    const builtNames = [s.built.batteryBank && '🔋 Battery Bank', s.built.recycler && '♻ Recycler', s.built.pylon && '🛡 Shield Pylon'].filter(Boolean);
+    modules.textContent = builtNames.length ? `🏗 ${builtNames.join(' · ')}` : '';
+    modules.hidden = builtNames.length === 0;
     info.classList.toggle('crit', s.battery < 20);
     clock.textContent = `${s.isDay ? '☀️ Day' : '🌑 Night'} · ${Math.floor(s.elapsed / 60)}:${String(Math.floor(s.elapsed % 60)).padStart(2, '0')}`;
 

@@ -4,6 +4,17 @@
 /** Shared upper bound for all metered resources (0..MAX_RESOURCE). */
 export const MAX_RESOURCE = 100;
 
+export const BATTERY_BANK_CAPACITY = 140;
+export const MODULE_COSTS = { batteryBank: 20, recycler: 25, pylon: 20 } as const;
+export type ModuleKind = keyof typeof MODULE_COSTS;
+export const ROVER_REPAIR_COST = 10;
+export const RECYCLER_REGEN = 0.8;
+export const PYLON_REGEN = 0.5;
+
+export function batteryCapacity(state: { built?: { batteryBank: boolean } }): number {
+  return state.built?.batteryBank ? BATTERY_BANK_CAPACITY : MAX_RESOURCE;
+}
+
 /** Sliders the player moves. Values are normalized to sum 100 inside tick(). */
 export interface PowerAllocation {
   shield: number;
@@ -21,6 +32,8 @@ export type Difficulty = 'guided' | 'challenge';
 
 export interface GameState {
   difficulty: Difficulty;
+  built: Record<ModuleKind, boolean>;
+  roverRepaired: boolean;
   /** Seconds of mission time elapsed. */
   elapsed: number;
   /** Mission length of one full lunar day+night cycle, in seconds (game time). */
@@ -99,8 +112,10 @@ export function tick(prev: GameState, dt: number): GameState {
 
   // Battery: charges with surplus, drains to cover deficits.
   const net = s.solarGeneration - consumptionDemand * poweredFraction;
-  if (net > 0 && s.battery < MAX_RESOURCE) {
-    s.battery = clamp(s.battery + net * 0.8 * dt);
+  const capacity = batteryCapacity(s);
+  s.battery = Math.min(capacity, Math.max(0, s.battery));
+  if (net > 0 && s.battery < capacity) {
+    s.battery = Math.min(capacity, s.battery + net * 0.8 * dt);
   } else if (net < 0 || !s.isDay) {
     const deficit = s.isDay ? Math.max(0, consumptionDemand - s.solarGeneration) : consumptionDemand;
     const fromBattery = Math.min(deficit * dt, s.battery);
@@ -129,7 +144,7 @@ export function tick(prev: GameState, dt: number): GameState {
 
   // Shield: material-funded repair when well powered, decay otherwise.
   const shieldPower = powerFor(alloc.shield);
-  let shieldDelta = (shieldPower > 0.25 ? 0 : -SHIELD_DECAY * drainScale) * dt;
+  let shieldDelta = (s.built.pylon ? PYLON_REGEN : shieldPower > 0.25 ? 0 : -SHIELD_DECAY * drainScale) * dt;
   if (s.activeEvent && s.stormRemaining > 0) {
     shieldDelta -= s.activeEvent.shieldDamagePerSecond * dt;
     s.stormRemaining = Math.max(0, s.stormRemaining - dt);
@@ -142,7 +157,7 @@ export function tick(prev: GameState, dt: number): GameState {
 
   // Oxygen: breathing continues even without feedstock or recycler power.
   const oxygenPower = powerFor(alloc.oxygen);
-  s.oxygen = repair(s.oxygen - OXYGEN_BASE_DRAIN * drainScale * dt, oxygenPower);
+  s.oxygen = repair(s.oxygen + ((s.built.recycler ? RECYCLER_REGEN : 0) - OXYGEN_BASE_DRAIN * drainScale) * dt, oxygenPower);
 
   // Comms: drift continues; powered repairs also consume shared materials.
   const commsPower = powerFor(alloc.comms);
@@ -176,10 +191,23 @@ export function startStorm(prev: GameState, damagePerSecond: number, durationSec
   };
 }
 
+/** Fixed construction prices are independent of difficulty; rejected actions are no-ops. */
+export function buildModule(prev: GameState, kind: ModuleKind): GameState {
+  if (prev.gameOver || prev.built[kind] || prev.materials < MODULE_COSTS[kind]) return prev;
+  return { ...prev, materials: prev.materials - MODULE_COSTS[kind], built: { ...prev.built, [kind]: true } };
+}
+
+export function repairRover(prev: GameState): GameState {
+  if (prev.gameOver || prev.roverRepaired || prev.materials < ROVER_REPAIR_COST) return prev;
+  return { ...prev, materials: prev.materials - ROVER_REPAIR_COST, roverRepaired: true };
+}
+
 /** Fresh state for a new mission. cycleLength is game seconds for one day+night. */
 export function createInitialState(cycleLength = 120, difficulty: Difficulty = 'guided'): GameState {
   return {
     difficulty,
+    built: { batteryBank: false, recycler: false, pylon: false },
+    roverRepaired: false,
     elapsed: 0,
     cycleLength,
     isDay: true,

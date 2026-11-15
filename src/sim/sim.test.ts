@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, tick, MAX_RESOURCE, type GameState, type PowerAllocation } from './sim';
+import { createInitialState, tick, MAX_RESOURCE, buildModule, MODULE_COSTS, BATTERY_BANK_CAPACITY, repairRover, ROVER_REPAIR_COST, type GameState, type PowerAllocation } from './sim';
 import { applyHarvest, DEPOSIT_TYPES } from '../game';
 import { missionProgress } from '../game/missions';
 import { discoveryName, appendLogEntry } from '../ui/logbook';
+
+import * as THREE from 'three';
+import { createScanner, SCAN_RADIUS } from '../scene/scanner';
+import { createModuleSlots, createRoverCondition } from '../scene/modules';
+import { buildOutpost } from '../scene/outpost';
 
 const DT = 0.1; // seconds per step for tests
 
@@ -23,6 +28,126 @@ describe('createInitialState', () => {
     expect(s.materials).toBe(40);
     expect(s.isDay).toBe(true);
     expect(s.elapsed).toBe(0);
+  });
+});
+
+describe('construction and rover progression', () => {
+  it.each(['batteryBank', 'recycler', 'pylon'] as const)('builds %s exactly once at its fixed cost, without mutating input', (kind) => {
+    const start = createInitialState(600);
+    expect(start.built).toEqual({ batteryBank: false, recycler: false, pylon: false });
+    const before = structuredClone(start);
+    const built = buildModule({ ...start, materials: MODULE_COSTS[kind] }, kind);
+    expect(built).toEqual({ ...start, materials: 0, built: { ...start.built, [kind]: true } });
+    expect(buildModule(built, kind)).toBe(built);
+    const poor = { ...start, materials: MODULE_COSTS[kind] - 0.01 };
+    expect(buildModule(poor, kind)).toBe(poor);
+    expect(start).toEqual(before);
+  });
+
+  it('charges and harvests to 140 only with a battery bank, without lowering an expanded reserve', () => {
+    expect(BATTERY_BANK_CAPACITY).toBe(140);
+    const built = buildModule(createInitialState(600), 'batteryBank');
+    const full = tick({ ...built, elapsed: 150, battery: 139 }, 1);
+    expect(full.battery).toBe(140);
+    expect(applyHarvest({ ...built, battery: 130 }, { type: 'battery' }).battery).toBe(140);
+    expect(applyHarvest({ ...built, battery: 110 }, { type: 'oxygen' }).battery).toBe(110);
+    expect(applyHarvest({ ...createInitialState(), battery: 90 }, { type: 'battery' }).battery).toBe(100);
+    expect(tick({ ...createInitialState(600), elapsed: 150, battery: 99 }, 1).battery).toBe(100);
+  });
+
+  it.each(['guided', 'challenge'] as const)('provides free independent recycler and pylon passives in %s', (difficulty) => {
+    const start = { ...createInitialState(600, difficulty), elapsed: 400, battery: 0,
+      materials: 0, oxygen: 50, shield: 50, built: { batteryBank: false, recycler: true, pylon: true } };
+    const next = tick(start, 1);
+    expect(next.oxygen).toBeCloseTo(50 - 0.55 * (difficulty === 'guided' ? 0.6 : 1.4) + 0.8);
+    expect(next.shield).toBe(50.5);
+    expect(next.materials).toBe(0);
+    const storm = tick({ ...start, activeEvent: { shieldDamagePerSecond: 2 }, stormRemaining: 5 }, 1);
+    expect(storm.shield).toBe(48.5);
+    const powered = tick({ ...start, elapsed: 150, battery: 100, materials: 20,
+      allocation: { shield: 100, oxygen: 0, comms: 0 } }, 1);
+    expect(powered.shield).toBe(53.5);
+    expect(powered.materials).toBeCloseTo(20 - 3 * 0.5 * (difficulty === 'guided' ? 0.7 : 1));
+    expect(tick({ ...start, oxygen: 100, shield: 100 }, 1).shield).toBe(100);
+    expect(tick({ ...start, oxygen: 100, shield: 100 }, 1).oxygen).toBe(100);
+  });
+
+  it('repairs the rover once for 10 materials and resets all progression in a fresh mission', () => {
+    expect(ROVER_REPAIR_COST).toBe(10);
+    const start = { ...createInitialState(), materials: 10 };
+    const repaired = repairRover(start);
+    expect(repaired).toEqual({ ...start, materials: 0, roverRepaired: true });
+    expect(start.roverRepaired).toBe(false);
+    expect(repairRover(repaired)).toBe(repaired);
+    const poor = { ...start, materials: 9.99 };
+    expect(repairRover(poor)).toBe(poor);
+    expect(createInitialState().built).toEqual({ batteryBank: false, recycler: false, pylon: false });
+    expect(createInitialState().roverRepaired).toBe(false);
+    expect(createInitialState().materials).toBe(40);
+  });
+});
+
+describe('progression scene handles', () => {
+  it('doubles scan reveal reach and restores the original range on reset', () => {
+    const deposits = [55, 55.01, 110, 110.01].map((x, id) => ({ id, x, z: 0,
+      height: 0, type: 'oxygen' as const, harvested: false }));
+    const scan = createScanner(deposits, new THREE.Vector3());
+    expect(SCAN_RADIUS).toBe(55);
+    scan.pulse();
+    expect(scan.nearby(new THREE.Vector3(), 200).map((d) => d.id)).toEqual([0]);
+    scan.setRangeMultiplier(2);
+    scan.pulse();
+    expect(scan.nearby(new THREE.Vector3(), 200).map((d) => d.id)).toEqual([0, 1, 2]);
+    scan.update(1.75);
+    expect(scan.group.children.at(-1)!.scale.x).toBe(55);
+    const reset = createScanner(deposits, new THREE.Vector3());
+    reset.setRangeMultiplier(1);
+    reset.pulse();
+    expect(reset.nearby(new THREE.Vector3(), 200).map((d) => d.id)).toEqual([0]);
+  });
+
+  it('keeps slots clear, animates solid modules, resets holograms and stays below the mesh budget', () => {
+    const outpost = buildOutpost();
+    const scene = new THREE.Scene();
+    const positions = [new THREE.Vector3(-7, 0.09, 0), new THREE.Vector3(3.7, 0.09, -2.6), new THREE.Vector3(2.2, 0.09, 4.3)];
+    const slots = createModuleSlots(scene, positions);
+    positions.forEach((p) => {
+      for (const c of outpost.colliders) expect(Math.hypot(p.x - c.x, p.z - c.z)).toBeGreaterThan(c.r + 0.65);
+      expect((p.x / 9.5) ** 2 + (p.z / 5.225) ** 2).toBeLessThan(1);
+      expect(Math.abs(p.x)).toBeGreaterThan(1.2); // chevron corridor stays open
+    });
+    const kinds = ['batteryBank', 'recycler', 'pylon'] as const;
+    slots.forEach((slot, index) => slot.markBuilt(kinds[index]));
+    const roots = scene.children;
+    slots.forEach((slot) => slot.update(0.5));
+    roots.forEach((root) => {
+      expect(root.children[0].visible).toBe(false);
+      expect(root.children[2].scale.y).toBeGreaterThan(0.5);
+      expect(root.children[2].scale.y).toBeLessThan(1);
+    });
+    slots.forEach((slot) => slot.update(0.5));
+    roots.forEach((root) => expect(root.children[2].scale.y).toBe(1));
+    slots.forEach((slot) => slot.reset());
+    roots.forEach((root) => {
+      expect(root.children[0].visible).toBe(true);
+      expect(root.children[2].visible).toBe(false);
+    });
+    slots.forEach((slot, index) => slot.markBuilt(kinds[index]));
+    const rover = new THREE.Group();
+    scene.add(rover);
+    const condition = createRoverCondition(rover);
+    condition.update(0.5);
+    expect(rover.children[0].visible).toBe(true);
+    condition.setRepaired(true);
+    expect(rover.children[0].visible).toBe(false);
+    expect(rover.children[1].visible).toBe(true);
+    condition.setRepaired(false);
+    expect(rover.children[0].visible).toBe(true);
+    expect(rover.children[1].visible).toBe(false);
+    let meshes = 0;
+    scene.traverse((object) => { if (object instanceof THREE.Mesh) meshes++; });
+    expect(meshes).toBe(21);
+    expect(meshes).toBeLessThan(45);
   });
 });
 
