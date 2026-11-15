@@ -148,16 +148,35 @@ function mountHud() {
   vi.stubGlobal('document', { createElement: () => new TestElement() });
   const container = new TestElement();
   const onAllocate = vi.fn<(allocation: PowerAllocation) => void>();
-  createHud(container as unknown as HTMLElement, onAllocate);
+  const hud = createHud(container as unknown as HTMLElement, onAllocate);
   const root = container.children[0];
   const panel = root.children.find((child) => child.className === 'hud-alloc')!;
   const rows = panel.children.filter((child) => child.className === 'hud-alloc-row');
   const sliders = rows.map((row) => row.children[1]);
   const labels = rows.map((row) => row.children[2]);
-  return { onAllocate, sliders, labels, title: panel.children[0] };
+  return { hud, root, onAllocate, sliders, labels, title: panel.children[0] };
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('HUD materials chip', () => {
+  it('renders an accessible materials value and bar with a strict below-15 warning', () => {
+    const { hud, root, sliders } = mountHud();
+    const panel = root.children.find((child) => child.className === 'hud-panel')!;
+    const chip = panel.children.find((row) => row.children[1]?.textContent === 'Materials');
+    expect(chip).toBeDefined();
+    expect(chip!.children[0].textContent).toBe('🧪');
+    expect(chip!.children[0].attributes.get('aria-hidden')).toBe('true');
+    expect(chip!.children[1].attributes.get('aria-label')).toContain('Materials:');
+    for (const value of [40, 15, 14, 0, 100]) {
+      hud.update({ ...createInitialState(), materials: value });
+      expect(chip!.children[2].textContent).toBe(String(value));
+      expect(Number.parseFloat(chip!.children[3].children[0].style.width)).toBeCloseTo(value);
+      expect(chip!.classList.toggle).toHaveBeenLastCalledWith('crit', value < 15);
+    }
+    expect(sliders).toHaveLength(3);
+  });
+});
 
 describe('HUD power controls', () => {
   it('starts with the simulation allocation and retains accessible slider labels', () => {

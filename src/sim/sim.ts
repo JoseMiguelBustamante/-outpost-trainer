@@ -17,7 +17,10 @@ export interface SimEvent {
   shieldDamagePerSecond: number;
 }
 
+export type Difficulty = 'guided' | 'challenge';
+
 export interface GameState {
+  difficulty: Difficulty;
   /** Seconds of mission time elapsed. */
   elapsed: number;
   /** Mission length of one full lunar day+night cycle, in seconds (game time). */
@@ -26,6 +29,8 @@ export interface GameState {
   /** Solar generation units per second right now (0 at night). */
   solarGeneration: number;
   battery: number;
+  /** Collected repair feedstock; empty materials is not a defeat condition. */
+  materials: number;
   shield: number;
   oxygen: number;
   comms: number;
@@ -46,7 +51,12 @@ const BATTERY_CAPACITY_TIME = 150; // seconds of average consumption it can hold
 const OXYGEN_BASE_DRAIN = 0.55; // crew breathing, always
 const SHIELD_DECAY = 0.35; // passive decay when underpowered
 const COMMS_DECAY = 0.25; // drift when underpowered
-const RESOURCE_REGEN = 6; // regen per second when a system is well powered
+const RESOURCE_REGEN = 3; // meter points/s scaled by system power (> 0.25)
+const MATERIALS_PER_POINT = 0.5; // one material repairs two meter points
+// Budget at balanced full power over ~25s of fallback storm damage:
+// shield repairs ~25 points + oxygen/comms upkeep 20 points => ~22.5 materials,
+// ~67% of the 33.75 materials in nine deposits. Only actual repairs cost stock.
+// Blackouts/poor allocation still reduce repairs; battery remains solar-driven.
 
 /** Fraction of the cycle (0..1) elapsed, wrapping. */
 function cyclePhase(state: GameState): number {
@@ -97,12 +107,29 @@ export function tick(prev: GameState, dt: number): GameState {
     s.battery -= fromBattery;
   }
 
+  // Guided eases passive drains to 60% and repair costs to 70%; challenge
+  // raises passive drains to 140% with the original material cost.
+  // Solar, battery, storm damage, and powered repair rates are unchanged.
+  const drainScale = s.difficulty === 'challenge' ? 1.4 : 0.6;
+  const materialCost = MATERIALS_PER_POINT * (s.difficulty === 'challenge' ? 1 : 0.7);
+
   // --- consumers ---
   const powerFor = (pct: number): number => poweredFraction * (pct / 100); // 0..1
 
-  // Shield: regen when well powered, decay otherwise, storm damage on top.
+  // Shared feedstock is spent in shield, oxygen, comms priority order.
+  // Apply damage/drain first, then buy only repairs that fit below the cap.
+  const repair = (value: number, power: number, rate = 1): number => {
+    const damaged = clamp(value);
+    if (power <= 0.25) return damaged;
+    const gain = Math.min(MAX_RESOURCE - damaged, RESOURCE_REGEN * power * rate * dt,
+      s.materials / materialCost);
+    s.materials = clamp(s.materials - gain * materialCost);
+    return clamp(damaged + gain);
+  };
+
+  // Shield: material-funded repair when well powered, decay otherwise.
   const shieldPower = powerFor(alloc.shield);
-  let shieldDelta = (shieldPower > 0.25 ? RESOURCE_REGEN * shieldPower : -SHIELD_DECAY) * dt;
+  let shieldDelta = (shieldPower > 0.25 ? 0 : -SHIELD_DECAY * drainScale) * dt;
   if (s.activeEvent && s.stormRemaining > 0) {
     shieldDelta -= s.activeEvent.shieldDamagePerSecond * dt;
     s.stormRemaining = Math.max(0, s.stormRemaining - dt);
@@ -111,17 +138,15 @@ export function tick(prev: GameState, dt: number): GameState {
       if (s.shield > 0) s.stormsSurvived += 1;
     }
   }
-  s.shield = clamp(s.shield + shieldDelta);
+  s.shield = repair(s.shield + shieldDelta, shieldPower);
 
-  // Oxygen: base drain plus regen if the recycler is powered.
+  // Oxygen: breathing continues even without feedstock or recycler power.
   const oxygenPower = powerFor(alloc.oxygen);
-  const oxygenDelta = (RESOURCE_REGEN * oxygenPower - OXYGEN_BASE_DRAIN) * dt;
-  s.oxygen = clamp(s.oxygen + oxygenDelta);
+  s.oxygen = repair(s.oxygen - OXYGEN_BASE_DRAIN * drainScale * dt, oxygenPower);
 
-  // Comms: slow decay; regen when powered. Missions need comms > 0 for points.
+  // Comms: drift continues; powered repairs also consume shared materials.
   const commsPower = powerFor(alloc.comms);
-  const commsDelta = (RESOURCE_REGEN * commsPower * 0.7 - COMMS_DECAY) * dt;
-  s.comms = clamp(s.comms + commsDelta);
+  s.comms = repair(s.comms - COMMS_DECAY * drainScale * dt, commsPower, 0.7);
 
   // --- game over conditions ---
   if (s.oxygen <= 0) {
@@ -152,13 +177,15 @@ export function startStorm(prev: GameState, damagePerSecond: number, durationSec
 }
 
 /** Fresh state for a new mission. cycleLength is game seconds for one day+night. */
-export function createInitialState(cycleLength = 120): GameState {
+export function createInitialState(cycleLength = 120, difficulty: Difficulty = 'guided'): GameState {
   return {
+    difficulty,
     elapsed: 0,
     cycleLength,
     isDay: true,
     solarGeneration: BASE_SOLAR_OUTPUT,
     battery: MAX_RESOURCE,
+    materials: 40,
     shield: MAX_RESOURCE,
     oxygen: MAX_RESOURCE,
     comms: MAX_RESOURCE,

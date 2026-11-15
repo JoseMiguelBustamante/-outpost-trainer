@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialState, tick, MAX_RESOURCE, type GameState, type PowerAllocation } from './sim';
+import { applyHarvest, DEPOSIT_TYPES } from '../game';
+import { missionProgress } from '../game/missions';
+import { discoveryName, appendLogEntry } from '../ui/logbook';
 
 const DT = 0.1; // seconds per step for tests
 
@@ -17,8 +20,99 @@ describe('createInitialState', () => {
     expect(s.shield).toBe(MAX_RESOURCE);
     expect(s.oxygen).toBe(MAX_RESOURCE);
     expect(s.comms).toBe(MAX_RESOURCE);
+    expect(s.materials).toBe(40);
     expect(s.isDay).toBe(true);
     expect(s.elapsed).toBe(0);
+  });
+});
+
+describe('staged missions', () => {
+  it('reveals stages in order and reports each reward transition only once', () => {
+    const state = createInitialState(600);
+    const initial = missionProgress(state, { depositsCollected: 2 });
+    expect(initial.stageIndex).toBe(0);
+    expect(initial.stages.map((stage) => stage.title)).toEqual(['Establish the outpost']);
+    expect(initial.completed).toEqual([]);
+    const first = missionProgress(state, { depositsCollected: 3 });
+    expect(first.stageIndex).toBe(1);
+    expect(first.completed.map((stage) => stage.rewardMaterials)).toEqual([15]);
+    expect(first.stages).toHaveLength(2);
+    const waiting = missionProgress({ ...state, stormsSurvived: 1, oxygen: 59 }, { depositsCollected: 3 }, 1);
+    expect(waiting.stageIndex).toBe(1);
+    const second = missionProgress({ ...state, stormsSurvived: 1, oxygen: 60 }, { depositsCollected: 3 }, 1);
+    expect(second.stageIndex).toBe(2);
+    expect(second.completed.map((stage) => stage.rewardMaterials)).toEqual([15]);
+    const repeated = missionProgress({ ...state, oxygen: 20 }, { depositsCollected: 3 }, 2);
+    expect(repeated.stageIndex).toBe(2);
+    expect(repeated.completed).toEqual([]);
+    const final = missionProgress({ ...state, stormsSurvived: 3 }, { depositsCollected: 3 }, 2);
+    expect(final.allDone).toBe(true);
+    expect(final.stages).toHaveLength(3);
+    expect(final.completed.map((stage) => stage.rewardMaterials)).toEqual([20]);
+    expect(missionProgress(state, { depositsCollected: 3 }, 3).completed).toEqual([]);
+  });
+
+  it('accepts cycle survival for the final stage but never skips an earlier requirement', () => {
+    const state = { ...createInitialState(600), gameOverReason: 'survived', stormsSurvived: 1 };
+    expect(missionProgress(state, { depositsCollected: 2 }).stageIndex).toBe(0);
+    const progress = missionProgress(state, { depositsCollected: 3 });
+    expect(progress.allDone).toBe(true);
+    expect(progress.completed.map((stage) => stage.rewardMaterials)).toEqual([15, 15, 20]);
+  });
+});
+
+describe('science logbook', () => {
+  it('names discoveries deterministically from their deposit index', () => {
+    expect([0, 1, 2].map(discoveryName)).toEqual(['Cyan Knoll', 'Rusty Spire', 'Amber Hollow']);
+    expect(discoveryName(8)).toBe(discoveryName(8));
+    expect(new Set(Array.from({ length: 9 }, (_, i) => discoveryName(i))).size).toBe(9);
+  });
+
+  it('keeps the newest 50 entries and mission-day timestamps without mutating prior entries', () => {
+    let entries = appendLogEntry([], 0, 'First discovery');
+    const first = entries;
+    for (let i = 1; i <= 50; i++) entries = appendLogEntry(entries, i * 60, `Entry ${i}`);
+    expect(first).toEqual([{ day: 1, text: 'First discovery' }]);
+    expect(entries).toHaveLength(50);
+    expect(entries[0]).toEqual({ day: 2, text: 'Entry 1' });
+    expect(entries[49]).toEqual({ day: 51, text: 'Entry 50' });
+  });
+});
+
+describe('difficulty', () => {
+  it('defaults to guided and retains an explicit challenge selection', () => {
+    expect(createInitialState(600).difficulty).toBe('guided');
+    expect(createInitialState(600, 'challenge').difficulty).toBe('challenge');
+  });
+
+  it('scales passive drains without changing battery or storm damage', () => {
+    const scenario = (difficulty: 'guided' | 'challenge') => tick({
+      ...createInitialState(600, difficulty), elapsed: 400, battery: 0, materials: 0,
+      shield: 50, oxygen: 50, comms: 50,
+      activeEvent: { shieldDamagePerSecond: 2 }, stormRemaining: 5,
+    }, 1);
+    const guided = scenario('guided');
+    const challenge = scenario('challenge');
+    for (const [key, drain] of [['shield', 0.35], ['oxygen', 0.55], ['comms', 0.25]] as const) {
+      const damage = key === 'shield' ? 2 : 0;
+      expect(guided[key]).toBeCloseTo(50 - damage - drain * 0.6);
+      expect(challenge[key]).toBeCloseTo(50 - damage - drain * 1.4);
+      expect(guided[key]).toBeGreaterThan(challenge[key]);
+    }
+    expect(guided.battery).toBe(challenge.battery);
+    expect(guided.stormRemaining).toBe(4);
+    expect(challenge.stormRemaining).toBe(4);
+  });
+
+  it('discounts guided repairs, preserving the challenge base cost', () => {
+    for (const difficulty of ['guided', 'challenge'] as const) {
+      const start = { ...createInitialState(600, difficulty), elapsed: 150, shield: 50,
+        allocation: { shield: 100, oxygen: 0, comms: 0 } };
+      const result = tick(start, 1);
+      expect(result.shield).toBe(53);
+      expect(start.materials - result.materials).toBeCloseTo(3 * 0.5 * (difficulty === 'guided' ? 0.7 : 1));
+      expect(start.shield).toBe(50);
+    }
   });
 });
 
@@ -92,10 +186,10 @@ describe('consumer resources', () => {
     expect(s.shield).toBeLessThan(MAX_RESOURCE);
   });
 
-  it('high allocation to shield keeps it topped up', () => {
-    const start = { ...createInitialState(1), allocation: { shield: 60, oxygen: 30, comms: 10 } };
-    const s = runSeconds(start, 60);
-    expect(s.shield).toBeGreaterThan(MAX_RESOURCE * 0.9);
+  it('high allocation to shield repairs it while powered with materials', () => {
+    const start = { ...createInitialState(600), elapsed: 150, shield: 90, allocation: { shield: 60, oxygen: 30, comms: 10 } };
+    const s = runSeconds(start, 2);
+    expect(s.shield).toBeGreaterThan(90);
   });
 
   it('all resources clamp between 0 and MAX_RESOURCE', () => {
@@ -105,6 +199,94 @@ describe('consumer resources', () => {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(MAX_RESOURCE);
     }
+  });
+});
+
+describe('materials economy', () => {
+  const powered = () => ({ ...createInitialState(600), elapsed: 150 });
+
+  it.each(['shield', 'oxygen', 'comms'] as const)('repairs %s at the guided discount without mutating the input', (key) => {
+    const start = { ...powered(), shield: 50, oxygen: 50, comms: 50,
+      allocation: { shield: 0, oxygen: 0, comms: 0, [key]: 100 } };
+    const before = structuredClone(start);
+    const s = tick(start, 1);
+    const drain = (key === 'oxygen' ? 0.55 : key === 'comms' ? 0.25 : 0) * 0.6;
+    expect(s[key] - start[key] + drain).toBeCloseTo((start.materials - s.materials) / 0.35);
+    expect(s.materials).toBeLessThan(start.materials);
+    expect(start).toEqual(before);
+  });
+
+  it('stops regen at zero materials while retaining breathing, drift and storm damage', () => {
+    const s = tick({ ...powered(), materials: 0, shield: 50, oxygen: 50, comms: 50,
+      activeEvent: { shieldDamagePerSecond: 2 }, stormRemaining: 5 }, 1);
+    expect(s.materials).toBe(0);
+    expect(s.shield).toBe(48);
+    expect(s.oxygen).toBeCloseTo(49.67);
+    expect(s.comms).toBeCloseTo(49.85);
+    expect(s.stormRemaining).toBe(4);
+    expect(s.gameOver).toBe(false);
+    expect(s.gameOverReason).toBeNull();
+  });
+
+  it('limits the last repair to the materials remaining', () => {
+    const s = tick({ ...powered(), materials: 0.1, shield: 50, oxygen: 50, comms: 50 }, 1);
+    expect(s.materials).toBe(0);
+    expect(s.shield).toBeCloseTo(50 + 0.1 / 0.35);
+    expect(s.oxygen).toBeCloseTo(49.67);
+    expect(s.comms).toBeCloseTo(49.85);
+  });
+
+  it('charges only for repair that fits below the meter cap', () => {
+    const s = tick({ ...powered(), shield: 99.9, allocation: { shield: 100, oxygen: 0, comms: 0 } }, 1);
+    expect(s.shield).toBe(100);
+    expect(s.materials).toBeCloseTo(39.965);
+  });
+
+  it('requires more than one quarter power for each recycler', () => {
+    const s = tick({ ...powered(), shield: 50, oxygen: 50, comms: 50,
+      allocation: { shield: 25, oxygen: 25, comms: 50 } }, 1);
+    expect(s.shield).toBeCloseTo(49.79);
+    expect(s.oxygen).toBeCloseTo(49.67);
+    expect(s.comms).toBeGreaterThan(50);
+  });
+
+  it('does not make empty materials a defeat or prevent mission completion', () => {
+    const s = tick({ ...powered(), materials: 0 }, 1);
+    expect(s.gameOver).toBe(false);
+    expect(s.gameOverReason).toBeNull();
+    const completed = tick({ ...s, elapsed: 599 }, 1);
+    expect(completed.gameOver).toBe(true);
+    expect(completed.gameOverReason).toBe('survived');
+  });
+
+  it.each(DEPOSIT_TYPES)('adds materials alongside the existing %s harvest reward, with caps', (type) => {
+    const start = { ...powered(), oxygen: 50, shield: 50, battery: 50, materials: 0 };
+    const s = applyHarvest(start, { type });
+    const key = type === 'sodium' ? 'shield' : type;
+    expect(s).toEqual({ ...start, [key]: 75, materials: 3.75 });
+    expect(start.materials).toBe(0);
+    expect(applyHarvest({ ...start, [key]: 99, materials: 99 }, { type }))
+      .toEqual({ ...start, [key]: 100, materials: 100 });
+  });
+
+  it('budgets three storms totaling 25 powered seconds at the guided discount', () => {
+    let s = powered();
+    for (const duration of [8, 8, 9]) {
+      s = { ...s, activeEvent: { shieldDamagePerSecond: 2 }, stormRemaining: duration };
+      s = runSeconds(s, duration, 1);
+    }
+    expect(s.stormsSurvived).toBe(3);
+    expect(s.gameOver).toBe(false);
+    expect(40 - s.materials).toBeCloseTo(12.9675);
+    const fraction = (40 - s.materials) / (9 * 3.75);
+    expect(fraction).toBeGreaterThanOrEqual(0.38);
+    expect(fraction).toBeLessThanOrEqual(0.39);
+  });
+
+  it('keeps a nine-deposit run within the materials budget', () => {
+    let s = { ...powered(), materials: 0 };
+    for (let i = 0; i < 9; i++) s = applyHarvest(s, { type: DEPOSIT_TYPES[i % 3] });
+    expect(s.materials).toBe(33.75);
   });
 });
 

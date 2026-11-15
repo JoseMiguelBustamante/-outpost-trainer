@@ -12,9 +12,15 @@ export interface HudHandle {
 }
 
 const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string; powerHint: string }> = [
-  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.', powerHint: 'stops storm damage' },
-  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. If it hits 0, the mission fails.', powerHint: 'keeps the crew alive' },
-  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Missions need comms alive to score.', powerHint: 'contact with Earth' },
+  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. Repairs need power and collected materials.', powerHint: 'stops storm damage' },
+  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. Recycling needs power and materials. At 0, the mission fails.', powerHint: 'keeps the crew alive' },
+  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Repairs need power and collected materials.', powerHint: 'contact with Earth' },
+];
+
+const CHIPS = [
+  ...METERS.map((meter) => ({ ...meter, critical: 20 })),
+  { key: 'materials' as const, icon: '🧪', label: 'Materials', color: 'var(--battery)',
+    hint: 'Collected from deposits. One material repairs two meter points; repairs also need power.', critical: 15 },
 ];
 
 /** Keep the moved slider fixed and share the remaining budget proportionally. */
@@ -61,7 +67,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   panel.setAttribute('aria-label', 'Life support meters');
   const bars = new Map<string, { row: HTMLElement; fill: HTMLElement; value: HTMLElement }>();
 
-  for (const m of METERS) {
+  for (const m of CHIPS) {
     const row = el('div', 'hud-meter');
     const label = el('div', 'hud-meter-label');
     const icon = el('span', 'hud-meter-icon');
@@ -164,12 +170,12 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   container.appendChild(root);
 
   const update = (s: GameState): void => {
-    for (const m of METERS) {
+    for (const m of CHIPS) {
       const b = bars.get(m.key)!;
       const v = s[m.key];
       b.fill.style.width = `${(v / MAX_RESOURCE) * 100}%`;
       b.value.textContent = `${Math.round(v)}`;
-      b.row.classList.toggle('crit', v < 20);
+      b.row.classList.toggle('crit', v < m.critical);
     }
     battery.textContent = `${Math.round(s.battery)}`;
     batteryFill.style.width = `${(s.battery / MAX_RESOURCE) * 100}%`;
