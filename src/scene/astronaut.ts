@@ -17,10 +17,10 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
   group.add(suit);
   const white = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.65 });
   const cyan = new THREE.MeshStandardMaterial({
-    color: '#b6f6ff', emissive: '#40dce9', emissiveIntensity: 1.5, roughness: 0.3,
+    color: '#7fd8ff', emissive: '#7fd8ff', emissiveIntensity: 1.5, roughness: 0.3,
   });
   const metal = new THREE.MeshStandardMaterial({ color: '#9cabb8', metalness: 0.55, roughness: 0.45 });
-  const orange = new THREE.MeshStandardMaterial({ color: '#e98b36', roughness: 0.55 });
+  const accent = new THREE.MeshStandardMaterial({ color: '#7fd8ff', roughness: 0.55 });
   const add = (geometry: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
@@ -38,7 +38,7 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
     add(limbs, white, side * 0.14, 0.28, 0);
     const arm = add(limbs, white, side * 0.34, 0.71, 0);
     arm.rotation.z = side * 0.15;
-    add(cuffs, orange, side * 0.34, 0.56, 0);
+    add(cuffs, accent, side * 0.34, 0.56, 0);
   }
   scene.add(group);
   let walkTime = 0;
@@ -70,6 +70,12 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
   return {
     group,
     setPosition,
+    /** Recolor existing visor and cuffs only; white suit and metal pack stay intact. */
+    setAccent: (color: string): void => {
+      cyan.color.set(color);
+      cyan.emissive.set(color);
+      accent.color.set(color);
+    },
     getPosition: () => group.position.clone(),
     update: (dt: number): void => {
       const direction = opts.movement().clone().clampLength(0, 1);

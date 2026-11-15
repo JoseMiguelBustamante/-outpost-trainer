@@ -3,6 +3,7 @@
 // for tests; the DOM wiring is thin and only runs in the browser.
 
 import type { Difficulty, GameState } from '../sim';
+import { renderBadgeChips, type BadgeId } from './logbook';
 
 export type GameOverReason = 'oxygen' | 'shield' | 'survived' | string;
 
@@ -10,13 +11,13 @@ export type GameOverReason = 'oxygen' | 'shield' | 'survived' | string;
 export function gameOverTitle(reason: GameOverReason): string {
   switch (reason) {
     case 'oxygen':
-      return 'Oxygen ran out!';
+      return '¡Se acabó el oxígeno!';
     case 'shield':
-      return 'Shield destroyed!';
+      return '¡Escudo destruido!';
     case 'survived':
-      return 'Mission accomplished! 🌕';
+      return '¡Misión cumplida! 🌕';
     default:
-      return 'Mission ended';
+      return 'Misión terminada';
   }
 }
 
@@ -24,29 +25,36 @@ export function gameOverTitle(reason: GameOverReason): string {
 export function gameOverDetail(reason: GameOverReason): string {
   switch (reason) {
     case 'oxygen':
-      return 'The crew ran out of oxygen. Keep the oxygen recycler powered — even at night.';
+      return 'La tripulación se quedó sin oxígeno. Mantén encendido el reciclador de oxígeno, incluso de noche.';
     case 'shield':
-      return 'A real solar storm broke through the shield. Slide shield power up when the alarm sounds.';
+      return 'Una tormenta solar real atravesó el escudo. Dale más energía al escudo cuando suene la alarma.';
     case 'survived':
-      return 'You survived a full lunar day and night. Every storm in this run was a real NASA DONKI event — see the Science page for the data.';
+      return 'Sobreviviste un día y una noche lunar completos. Cada tormenta fue un evento real de NASA DONKI. Consulta los datos en la página de ciencia.';
     default:
-      return 'The mission came to an end.';
+      return 'La misión llegó a su fin.';
   }
 }
 
 /** "2 storms survived · Day 5 of 14" line for the end screen. */
 export function missionSummary(s: GameState): string {
   const n = s.stormsSurvived;
-  const stormPart = n === 1 ? '1 storm survived' : `${n} storms survived`;
+  const stormPart = `Tormentas sobrevividas: ${n}`;
   const day = Math.floor(s.elapsed / 60) + 1;
   const total = Math.round(s.cycleLength / 60);
-  return `${stormPart} · Day ${day} of ${total}`;
+  return `${stormPart} · Día ${day} de ${total}`;
+}
+
+export interface ShowcaseData {
+  built: GameState['built'];
+  depositsCollected: number;
+  badges: readonly BadgeId[];
+  difficulty: Difficulty;
 }
 
 export interface OverlayHandle {
   root: HTMLElement;
   /** Show the end screen with the given sim reason and final state. */
-  showGameOver: (reason: GameOverReason, state: GameState) => void;
+  showGameOver: (reason: GameOverReason, state: GameState, extra?: ShowcaseData) => void;
   hideGameOver: () => void;
 }
 
@@ -88,9 +96,14 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
   const card = buildGameOverCard(titleEl, detailEl, scoreEl);
   card.insertBefore(iconEl, card.firstChild);
 
+  const showcase = document.createElement('section');
+  showcase.className = 'victory-showcase';
+  showcase.hidden = true;
+  card.appendChild(showcase);
+
   const retry = document.createElement('button');
   retry.className = 'overlay-cta';
-  retry.textContent = '🔁 Retry mission';
+  retry.textContent = '🔁 Reintentar';
   retry.addEventListener('click', onRetry);
   const actions = document.createElement('div');
   actions.style.cssText = 'display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;';
@@ -98,7 +111,7 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
   actions.appendChild(retry);
   const science = document.createElement('a');
   science.className = 'overlay-cta overlay-science-link';
-  science.textContent = '🔬 View science';
+  science.textContent = '🔬 Ver la ciencia';
   science.href = '/science.html';
   science.target = '_blank';
   science.rel = 'noopener';
@@ -108,13 +121,43 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
   overlay.appendChild(card);
   root.appendChild(overlay);
 
-  const showGameOver = (reason: GameOverReason, state: GameState): void => {
+  const showGameOver = (reason: GameOverReason, state: GameState, extra?: ShowcaseData): void => {
     const won = reason === 'survived';
     overlay.classList.toggle('victory', won);
     iconEl.textContent = won ? '🌕' : '💥';
     titleEl.textContent = gameOverTitle(reason);
     detailEl.textContent = gameOverDetail(reason);
-    scoreEl.textContent = `${missionSummary(state)} · ${state.difficulty === 'challenge' ? 'Challenge' : 'Guided'}`;
+    scoreEl.textContent = `${missionSummary(state)} · ${state.difficulty === 'challenge' ? 'Desafío' : 'Guiado'}`;
+    showcase.replaceChildren();
+    showcase.hidden = !won;
+    if (won) {
+      const heading = document.createElement('h3');
+      heading.textContent = 'Tu puesto de avanzada';
+      const achievements = document.createElement('ul');
+      achievements.className = 'showcase-stats';
+      const built = extra?.built ?? state.built;
+      const modules = [
+        built.batteryBank && '🔋 Banco de Baterías',
+        built.recycler && '♻️ Reciclador',
+        built.pylon && '🛡 Pilar de Escudo',
+      ].filter(Boolean);
+      for (const text of [
+        `Tormentas sobrevividas: ${state.stormsSurvived}`,
+        `Día: ${Math.floor(state.elapsed / 60) + 1}`,
+        `Dificultad: ${(extra?.difficulty ?? state.difficulty) === 'challenge' ? 'Desafío' : 'Guiado'}`,
+        `Depósitos recolectados: ${extra?.depositsCollected ?? 0}`,
+        `Módulos construidos: ${modules.length ? modules.join(' · ') : 'Ninguno'}`,
+      ]) {
+        const item = document.createElement('li');
+        item.textContent = text;
+        achievements.appendChild(item);
+      }
+      const badgesHeading = document.createElement('h4');
+      badgesHeading.textContent = 'Insignias obtenidas';
+      const badges = renderBadgeChips(extra?.badges ?? [], false);
+      if (!badges.childElementCount) badges.textContent = 'Todavía no tienes insignias';
+      showcase.append(heading, achievements, badgesHeading, badges);
+    }
     root.classList.add('show');
     retry.focus();
   };
@@ -150,22 +193,23 @@ export function createTutorial(
 
   const title = document.createElement('h2');
   title.id = 'tut-title';
-  title.textContent = 'Welcome, Junior Astronaut';
+  title.textContent = 'Bienvenido, Astronauta Junior';
   card.appendChild(title);
 
   const intro = document.createElement('p');
   intro.className = 'overlay-detail';
   intro.textContent =
-    'You run a real Moon outpost at the lunar south pole. NASA tracked actual solar storms — they will hit your shield.';
+    'Dirige un puesto de avanzada en el polo sur de la Luna. La NASA registró tormentas solares reales: aquí pondrán a prueba tu escudo.';
   card.appendChild(intro);
 
   const rules = document.createElement('ul');
   rules.className = 'overlay-rules';
   for (const rule of [
-    ['One power budget', 'shield, oxygen and comms share a single battery — every point matters.'],
-    ['Storms are real', 'when the alarm sounds, move power to the shield.'],
-    ['SCAN + LOG', 'scan to reveal deposits, then walk to them or tap to collect materials. Open LOG for named discoveries and NASA storm records.'],
-    ['Expedition stages', 'collect 3 deposits, sustain the crew through a storm, then survive the emergency. Completed stages reward repair materials.'],
+    ['Una sola reserva de energía', 'el escudo, el oxígeno y las comunicaciones comparten una batería. Cada punto cuenta.'],
+    ['Las tormentas son reales', 'cuando suene la alarma, dale más energía al escudo.'],
+    ['ESCANEAR + BITÁCORA', 'escanea para revelar depósitos. Camina hasta ellos o tócalos para recolectar materiales. Abre la BITÁCORA para ver tus descubrimientos y las tormentas de la NASA.'],
+    ['Etapas de la expedición', 'recolecta 3 depósitos, cuida a la tripulación durante una tormenta y sobrevive la emergencia. Cada etapa completa te da materiales para reparar.'],
+    ['Insignias y colores del traje', 'sobrevive una tormenta, construye los 3 módulos, recolecta 6 depósitos y sobrevive el ciclo para ganar insignias en la BITÁCORA. Las insignias de tormenta, construcción y ciclo desbloquean detalles naranja, violeta y dorado en tu traje. Reintentar borra el progreso.'],
   ] as const) {
     const li = document.createElement('li');
     const b = document.createElement('b');
@@ -180,11 +224,11 @@ export function createTutorial(
   const modes = document.createElement('fieldset');
   modes.className = 'difficulty-options';
   const legend = document.createElement('legend');
-  legend.textContent = 'Choose your difficulty';
+  legend.textContent = 'Elige tu dificultad';
   modes.appendChild(legend);
   for (const [value, label, description] of [
-    ['guided', '🧭 Guided', 'slower drain + cheaper repairs'],
-    ['challenge', '🔥 Challenge', 'less margin, faster decay'],
+    ['guided', '🧭 Guiado', 'drenaje más lento y reparaciones más baratas'],
+    ['challenge', '🔥 Desafío', 'menos margen, decaimiento rápido'],
   ] as const) {
     const option = document.createElement('label');
     option.className = 'difficulty-option';
@@ -207,13 +251,13 @@ export function createTutorial(
 
   const start = document.createElement('button');
   start.className = 'overlay-cta';
-  start.textContent = '🚀 Start mission';
+  start.textContent = '🚀 Iniciar misión';
   start.addEventListener('click', () => onStart(difficulty));
   card.appendChild(start);
 
   const science = document.createElement('a');
   science.className = 'overlay-cta overlay-science-link';
-  science.textContent = '🔬 View science';
+  science.textContent = '🔬 Ver la ciencia';
   science.href = '/science.html';
   science.target = '_blank';
   science.rel = 'noopener';

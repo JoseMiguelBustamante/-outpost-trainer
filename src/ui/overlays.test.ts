@@ -5,33 +5,33 @@ import { gameOverTitle, gameOverDetail, missionSummary } from './overlays';
 
 describe('gameOverTitle', () => {
   it('names oxygen loss as the failure', () => {
-    expect(gameOverTitle('oxygen')).toBe('Oxygen ran out!');
+    expect(gameOverTitle('oxygen')).toBe('¡Se acabó el oxígeno!');
   });
 
   it('names shield loss as the failure', () => {
-    expect(gameOverTitle('shield')).toBe('Shield destroyed!');
+    expect(gameOverTitle('shield')).toBe('¡Escudo destruido!');
   });
 
   it('celebrates survival', () => {
-    expect(gameOverTitle('survived')).toBe('Mission accomplished! 🌕');
+    expect(gameOverTitle('survived')).toBe('¡Misión cumplida! 🌕');
   });
 
   it('falls back to generic mission end for unknown reasons', () => {
-    expect(gameOverTitle('unknown')).toBe('Mission ended');
+    expect(gameOverTitle('unknown')).toBe('Misión terminada');
   });
 });
 
 describe('gameOverDetail', () => {
   it('explains why the crew ran out of oxygen', () => {
-    expect(gameOverDetail('oxygen')).toContain('oxygen');
+    expect(gameOverDetail('oxygen')).toContain('oxígeno');
   });
 
   it('explains a destroyed shield', () => {
-    expect(gameOverDetail('shield')).toContain('shield');
+    expect(gameOverDetail('shield')).toContain('escudo');
   });
 
   it('points to the science page after surviving', () => {
-    expect(gameOverDetail('survived')).toContain('Science');
+    expect(gameOverDetail('survived')).toContain('ciencia');
   });
 });
 
@@ -40,12 +40,12 @@ describe('missionSummary', () => {
     const s = { ...createInitialState(600), stormsSurvived: 3, elapsed: 245 };
     const text = missionSummary(s);
     expect(text).toContain('3');
-    expect(text).toContain('storm');
-    expect(text).toMatch(/day/i);
+    expect(text).toContain('Tormentas');
+    expect(text).toMatch(/día/i);
   });
 
   it('uses singular for one storm', () => {
     const s = { ...createInitialState(600), stormsSurvived: 1, elapsed: 10 };
-    expect(missionSummary(s)).toContain('1 storm survived');
+    expect(missionSummary(s)).toContain('Tormentas sobrevividas: 1');
   });
 });

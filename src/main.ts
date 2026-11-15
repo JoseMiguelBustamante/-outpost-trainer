@@ -16,7 +16,7 @@ import { createOverlays, createTutorial } from './ui/overlays';
 import { createAudio } from './ui/audio';
 import { missionProgress } from './game/missions';
 import { createObjectives } from './ui/objectives';
-import { createLogbook, appendLogEntry, discoveryName, type LogEntry } from './ui/logbook';
+import { createLogbook, appendLogEntry, discoveryName, awardBadges, suitAccent, type BadgeId, type LogEntry } from './ui/logbook';
 import { fetchDonkiEvents, stormsFromEvents } from './donki/donki';
 import { scheduleStorms, updateStorms, type ScheduledStorm } from './donki/storms';
 
@@ -53,8 +53,8 @@ function boot(): void {
 
   // Pad ellipse (9.5 × 5.225): clear of structure footprints, pipes and x=0 chevrons.
   const moduleKinds: ModuleKind[] = ['batteryBank', 'recycler', 'pylon'];
-  const moduleNames = { batteryBank: 'Battery Bank', recycler: 'Recycler', pylon: 'Shield Pylon' };
-  const moduleEffects = { batteryBank: '+40% battery capacity', recycler: 'free oxygen +0.8/s', pylon: 'no shield decay, free shield +0.5/s' };
+  const moduleNames = { batteryBank: 'Banco de Baterías', recycler: 'Reciclador', pylon: 'Pilar de Escudo' };
+  const moduleEffects = { batteryBank: 'capacidad +40%', recycler: 'oxígeno gratis +0.8/s', pylon: 'sin desgaste del escudo, escudo gratis +0.5/s' };
   const slots = createModuleSlots(game.scene, [new THREE.Vector3(-7, 0.09, 0),
     new THREE.Vector3(3.7, 0.09, -2.6), new THREE.Vector3(2.2, 0.09, 4.3)]);
   const baseColliders = [...game.outpost.colliders];
@@ -82,7 +82,7 @@ function boot(): void {
   });
   const joystick = document.createElement('div');
   joystick.className = 'player-joystick';
-  joystick.setAttribute('aria-label', 'Drag to walk. Desktop: WASD or arrow keys; E to scan.');
+  joystick.setAttribute('aria-label', 'Arrastra para caminar. En computadora: WASD o flechas; E para escanear.');
   const knob = document.createElement('div');
   knob.className = 'player-joystick-knob';
   joystick.appendChild(knob);
@@ -152,7 +152,7 @@ function boot(): void {
     const previousMaterials = state.materials;
     state = applyHarvest(state, deposit);
     stats.depositsCollected++;
-    recordLog(`Named discovery: ${discoveryName(deposit.id)} — materials +${Number((state.materials - previousMaterials).toFixed(2))}`);
+    recordLog(`Descubrimiento: ${discoveryName(deposit.id)} — materiales +${Number((state.materials - previousMaterials).toFixed(2))}`);
     advanceObjectives();
     audio.harvest();
   }
@@ -178,6 +178,7 @@ function boot(): void {
   const stats = { depositsCollected: 0 };
   let progress = missionProgress(state, stats);
   let entries: LogEntry[] = [];
+  let earnedBadges: BadgeId[] = [];
   let activeStorm: ScheduledStorm | null = null;
   const missionBanner = hud.root.querySelector<HTMLElement>('.hud-mission')!;
   const objectives = createObjectives(missionBanner);
@@ -189,14 +190,21 @@ function boot(): void {
   });
   function recordLog(text: string): void {
     entries = appendLogEntry(entries, state.elapsed, text);
-    logbook.update(entries);
+    logbook.update(entries, earnedBadges);
+  }
+  function updateBadges(): void {
+    const newlyEarned = awardBadges({ ...state, ...stats, earnedBadges });
+    if (!newlyEarned.length) return;
+    earnedBadges = [...earnedBadges, ...newlyEarned.map((badge) => badge.id)];
+    for (const badge of newlyEarned) recordLog(`Insignia obtenida: ${badge.label}`);
+    player.setAccent(suitAccent(earnedBadges));
   }
   function advanceObjectives(): void {
     progress = missionProgress(state, stats, progress.stageIndex);
     for (const stage of progress.completed) {
       state = { ...state, materials: Math.min(MAX_RESOURCE, state.materials + stage.rewardMaterials) };
       objectives.celebrate(stage, performance.now());
-      recordLog(`Stage completed: ${stage.title} — +${stage.rewardMaterials} materials`);
+      recordLog(`Etapa completa: ${stage.title} — +${stage.rewardMaterials} materiales`);
     }
   }
 
@@ -210,7 +218,9 @@ function boot(): void {
     progress = missionProgress(state, stats);
     objectives.reset();
     entries = [];
-    logbook.update(entries);
+    earnedBadges = [];
+    player.setAccent(suitAccent(earnedBadges));
+    logbook.update(entries, earnedBadges);
     activeStorm = null;
     simAccumulator = 0;
     slots.forEach((slot) => slot.reset());
@@ -253,8 +263,8 @@ function boot(): void {
 
   const scanBtn = document.createElement('button');
   scanBtn.className = 'hud-scan-btn';
-  scanBtn.textContent = '🔍 SCAN';
-  scanBtn.title = 'Reveal resources within 55 units (E), or 110 after rover repair. Walk with WASD / arrows or joystick to collect. Build at cyan pads; repair the rover nearby.';
+  scanBtn.textContent = '🔍 ESCANEAR';
+  scanBtn.title = 'Revela recursos a 55 unidades (E), o a 110 tras reparar el rover. Camina con WASD, flechas o la palanca para recolectar. Construye en las zonas cian y acércate al rover para repararlo.';
   scanBtn.style.pointerEvents = 'auto';
   scanBtn.addEventListener('click', () => scanner?.pulse());
   const scanWrap = document.createElement('div');
@@ -262,8 +272,8 @@ function boot(): void {
   scanWrap.appendChild(scanBtn);
   const logBtn = document.createElement('button');
   logBtn.className = 'hud-scan-btn hud-log-btn';
-  logBtn.textContent = '📖 LOG';
-  logBtn.title = 'Science logbook: discoveries, survived NASA storms, and completed stages. Escape closes.';
+  logBtn.textContent = '📖 BITÁCORA';
+  logBtn.title = 'Bitácora científica: insignias, descubrimientos, tormentas de la NASA sobrevividas y etapas completas. Presiona Escape para cerrar.';
   logBtn.setAttribute('aria-haspopup', 'dialog');
   logBtn.addEventListener('click', () => {
     if (!paused && !state.gameOver) logbook.toggle();
@@ -305,9 +315,9 @@ function boot(): void {
     const cost = kind ? MODULE_COSTS[kind] : ROVER_REPAIR_COST;
     const affordable = state.materials >= cost;
     interactionText.textContent = affordable
-      ? `${kind ? `Build ${moduleNames[kind]}` : 'Repair rover'} — ${cost} 🧪`
-      : `Not enough materials (have ${Number(state.materials.toFixed(2))}/${cost})`;
-    interactionButton.textContent = isRover ? 'REPAIR' : 'BUILD';
+      ? `${kind ? `Construir ${moduleNames[kind]}` : 'Reparar el rover'} — ${cost} 🧪`
+      : `Materiales insuficientes (tienes ${Number(state.materials.toFixed(2))}/${cost})`;
+    interactionButton.textContent = isRover ? '[REPARAR]' : '[CONSTRUIR]';
     interactionButton.disabled = !affordable;
   }
   interactionButton.addEventListener('click', () => {
@@ -319,7 +329,7 @@ function boot(): void {
       state = next;
       roverCondition.setRepaired(true);
       scanner?.setRangeMultiplier(2);
-      recordLog('Repaired: Rover — SCAN range ×2');
+      recordLog('Reparado: Rover — alcance de escaneo ×2');
     } else {
       const index = currentInteraction;
       const kind = moduleKinds[index];
@@ -328,7 +338,7 @@ function boot(): void {
       state = next;
       slots[index].markBuilt(kind);
       game.outpost.colliders.push({ x: slots[index].position.x, z: slots[index].position.z, r: 0.65 });
-      recordLog(`Built: ${moduleNames[kind]} — ${moduleEffects[kind]}`);
+      recordLog(`Construido: ${moduleNames[kind]} — ${moduleEffects[kind]}`);
     }
     audio.harvest();
     updateInteraction();
@@ -365,13 +375,15 @@ function boot(): void {
         const survived = state.stormsSurvived;
         state = tick(state, SIM_DT);
         if (state.stormsSurvived > survived && activeStorm) {
-          recordLog(`Storm survived: ${activeStorm.summary} — NASA DONKI ${activeStorm.sourceId}`);
+          recordLog(`Tormenta sobrevivida: ${activeStorm.summary.replace('Geomagnetic storm', 'Tormenta geomagnética')} — NASA DONKI ${activeStorm.sourceId}`);
           activeStorm = null;
         }
         advanceObjectives();
         simAccumulator -= SIM_DT;
       }
     }
+    // Award before the end screen, including the cycle badge on the victory frame.
+    updateBadges();
     hud.update(state);
     objectives.update(state, stats, progress, now);
     // Keep the opener focusable while the native modal owns focus, so closing
@@ -390,7 +402,12 @@ function boot(): void {
     // End of mission: freeze the sim, show the screen, play the sting.
     if (state.gameOver && !endedHandled) {
       endedHandled = true;
-      overlays.showGameOver(state.gameOverReason ?? 'unknown', state);
+      overlays.showGameOver(state.gameOverReason ?? 'unknown', state, {
+        built: state.built,
+        depositsCollected: stats.depositsCollected,
+        badges: earnedBadges,
+        difficulty: state.difficulty,
+      });
       if (state.gameOverReason === 'survived') audio.victory();
       else audio.defeat();
     }
