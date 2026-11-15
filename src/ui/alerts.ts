@@ -6,7 +6,7 @@ import type { ScheduledStorm } from '../donki';
 export interface AlertHandle {
   root: HTMLElement;
   /** Poll the schedule and show/update banners accordingly. */
-  update: (schedule: ScheduledStorm[], elapsed: number) => void;
+  update: (schedule: ScheduledStorm[], elapsed: number, stormRemaining?: number) => void;
 }
 
 export function createAlerts(container: HTMLElement): AlertHandle {
@@ -14,7 +14,7 @@ export function createAlerts(container: HTMLElement): AlertHandle {
   root.className = 'hud-alerts';
   container.appendChild(root);
 
-  const update = (schedule: ScheduledStorm[], elapsed: number): void => {
+  const update = (schedule: ScheduledStorm[], elapsed: number, stormRemaining?: number): void => {
     root.innerHTML = '';
     for (const storm of schedule) {
       if (!storm.announced || storm.hit) continue;
@@ -30,7 +30,10 @@ export function createAlerts(container: HTMLElement): AlertHandle {
       root.appendChild(item);
     }
     for (const storm of schedule) {
-      if (storm.hit && elapsed <= storm.startAt + storm.durationSeconds) {
+      // Never outlive the simulation; cap stale/oversized schedule banners too.
+      if (storm.hit && (stormRemaining === undefined || stormRemaining > 0)
+        && elapsed >= storm.startAt
+        && elapsed < storm.startAt + Math.min(storm.durationSeconds, 90)) {
         const item = document.createElement('div');
         item.className = 'hud-alert active';
         item.textContent = '🌪️ Storm in progress — power the shield!';

@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
+export interface OutpostCollider { x: number; z: number; r: number }
+
 export interface OutpostBuild {
+  /** Solid world-space footprints; the platform remains walkable. */
+  colliders: OutpostCollider[];
   group: THREE.Group;
   /** World-space position of the dome center (used by future camera targeting). */
   center: THREE.Vector3;
@@ -412,20 +416,32 @@ function servicePipes(mats: Materials): THREE.Group {
   return g;
 }
 
-/** Presentation-only props; group origin and camera center remain stable. */
+/** Solid props and their footprints; group origin and camera center remain stable. */
 export function buildOutpost(): OutpostBuild {
   const mats = outpostMaterials();
   const group = new THREE.Group();
   group.name = 'outpost';
-  group.add(habitatDome(mats, 0, 0, 2.6));
-  group.add(habitatDome(mats, 4.5, 1.2, 1.8, true));
-  group.add(habitatModule(mats, -4.2, 0.8, Math.PI / 2));
-  group.add(solarArray(mats));
-  group.add(antenna(mats, 6.8, -2.5));
+  const colliders: OutpostCollider[] = [];
+  const addSolid = (structure: THREE.Group, circles: OutpostCollider[]): void => {
+    group.add(structure);
+    structure.updateWorldMatrix(true, false);
+    for (const circle of circles) {
+      const position = structure.localToWorld(new THREE.Vector3(circle.x, 0, circle.z));
+      colliders.push({ x: position.x, z: position.z, r: circle.r });
+    }
+  };
+  addSolid(habitatDome(mats, 0, 0, 2.6), [{ x: 0, z: 0, r: 2.76 }]);
+  addSolid(habitatDome(mats, 4.5, 1.2, 1.8, true), [{ x: 0, z: 0, r: 1.91 }]);
+  addSolid(habitatModule(mats, -4.2, 0.8, Math.PI / 2), [
+    { x: -1.1, z: 0, r: 1.72 }, { x: 1.1, z: 0, r: 1.72 },
+  ]);
+  addSolid(solarArray(mats), [{ x: -1.55, z: 0, r: 1.9 }, { x: 1.55, z: 0, r: 1.9 }]);
+  addSolid(antenna(mats, 6.8, -2.5), [{ x: 0, z: 0, r: 0.3 }]);
   group.add(connector(mats));
   group.add(platform(mats));
-  group.add(railing(mats), padChevrons(mats), rover(mats), astronaut(mats), servicePipes(mats));
+  addSolid(rover(mats), [{ x: 0, z: 0, r: 1 }]);
+  group.add(railing(mats), padChevrons(mats), astronaut(mats), servicePipes(mats));
   group.position.y = 0.05;
   const center = new THREE.Vector3(0, 1.5, 0);
-  return { group, center };
+  return { group, center, colliders };
 }

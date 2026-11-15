@@ -19,15 +19,21 @@ const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: s
 
 /** Keep the moved slider fixed and share the remaining budget proportionally. */
 export function adjustAllocation(values: PowerAllocation, changedKey: keyof PowerAllocation): PowerAllocation {
-  const result = { ...values, [changedKey]: Math.min(100, Math.max(0, values[changedKey])) };
-  if (result.shield + result.oxygen + result.comms === 100) return result;
+  const result = { ...values, [changedKey]: Math.round(Math.min(100, Math.max(0, values[changedKey]))) };
 
   const [first, second] = METERS.map((meter) => meter.key).filter((key) => key !== changedKey);
   const remainder = 100 - result[changedKey];
   const otherTotal = values[first] + values[second];
-  result[first] = otherTotal === 0 ? remainder / 2 : remainder * (values[first] / otherTotal);
-  // Use the residual rather than independently scaling both shares, to avoid drift.
-  result[second] = remainder - result[first];
+  const firstShare = otherTotal === 0 ? remainder / 2 : remainder * (values[first] / otherTotal);
+  const secondShare = remainder - firstShare;
+  result[first] = Math.floor(firstShare);
+  result[second] = Math.floor(secondShare);
+  // Largest remainder wins the leftover unit; ties follow meter order.
+  const leftover = remainder - result[first] - result[second];
+  if (leftover > 0) {
+    const winner = firstShare - result[first] >= secondShare - result[second] ? first : second;
+    result[winner] += leftover;
+  }
   return result;
 }
 
@@ -113,7 +119,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     }, changedKey);
     for (const { key } of METERS) {
       sliders.get(key)!.value = String(allocation[key]);
-      values.get(key)!.textContent = `${allocation[key]}%`;
+      values.get(key)!.textContent = `${Math.round(allocation[key])}%`;
     }
     onAllocate(allocation);
   };
@@ -127,12 +133,12 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     slider.setAttribute('aria-label', `${m.label} power`);
     slider.min = '0';
     slider.max = '100';
-    // Proportional balancing can produce fractions; do not snap them to steps of 5.
+    // Accept raw input; adjustAllocation apportions it into whole percentages.
     slider.step = 'any';
     slider.value = String(initialAllocation[m.key]);
     slider.dataset.key = m.key;
     const val = el('span', 'hud-alloc-value');
-    val.textContent = `${slider.value}%`;
+    val.textContent = `${Math.round(Number(slider.value))}%`;
 
     slider.addEventListener('input', () => emit(m.key));
 

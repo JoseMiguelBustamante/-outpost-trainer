@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import type { OutpostCollider } from './outpost';
 
 export interface PlayerAstronautOptions {
   terrainHeight: (x: number, z: number) => number;
   /** World-space X/Z direction, with magnitude at most one. */
   movement: () => THREE.Vector2;
   center: THREE.Vector3;
+  colliders?: readonly OutpostCollider[];
 }
 
 /** Terrain-grounded player; the visual bobs independently of its world position. */
@@ -44,6 +46,24 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
     const offset = new THREE.Vector2(x - opts.center.x, z - opts.center.z).clampLength(0, 28);
     x = opts.center.x + offset.x;
     z = opts.center.z + offset.y;
+    // Iterative projection keeps tangential movement instead of cancelling it.
+    // Repeat for overlapping footprints, including an exact-center fallback.
+    for (let pass = 0; pass < 12; pass++) {
+      let pushed = false;
+      for (const collider of opts.colliders ?? []) {
+        const dx = x - collider.x;
+        const dz = z - collider.z;
+        const distance = Math.hypot(dx, dz);
+        const clearance = collider.r + 0.3;
+        if (distance >= clearance) continue;
+        const nx = distance > 1e-8 ? dx / distance : 1;
+        const nz = distance > 1e-8 ? dz / distance : 0;
+        x = collider.x + nx * (clearance + 1e-7);
+        z = collider.z + nz * (clearance + 1e-7);
+        pushed = true;
+      }
+      if (!pushed) break;
+    }
     group.position.set(x, opts.terrainHeight(x, z), z);
   };
   setPosition(opts.center.x + 0.85, opts.center.z + 2.8);
@@ -54,7 +74,12 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
     update: (dt: number): void => {
       const direction = opts.movement().clone().clampLength(0, 1);
       const before = group.position.clone();
-      setPosition(before.x + direction.x * 3 * dt, before.z + direction.y * 3 * dt);
+      // Small steps prevent frame stalls from tunnelling through narrow props.
+      const steps = Math.max(1, Math.ceil(3 * dt / 0.15));
+      for (let step = 0; step < steps; step++) {
+        setPosition(group.position.x + direction.x * 3 * dt / steps,
+          group.position.z + direction.y * 3 * dt / steps);
+      }
       const moving = before.distanceToSquared(group.position) > 0.000001;
       if (moving) {
         group.rotation.y = Math.atan2(direction.x, direction.y);

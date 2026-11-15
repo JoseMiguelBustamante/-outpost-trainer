@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createInitialState, type PowerAllocation } from '../sim';
 import { adjustAllocation, createHud } from './hud';
+import * as THREE from 'three';
+import { buildOutpost } from '../scene/outpost';
+import { createPlayerAstronaut } from '../scene/astronaut';
+import { createAlerts } from './alerts';
+import { scheduleStorms } from '../donki/storms';
 
 const keys = ['shield', 'oxygen', 'comms'] as const;
 
@@ -24,7 +29,7 @@ describe('adjustAllocation', () => {
 
   it('splits the remainder evenly when both other values are zero', () => {
     expect(adjustAllocation({ shield: 15, oxygen: 0, comms: 0 }, 'shield'))
-      .toEqual({ shield: 15, oxygen: 42.5, comms: 42.5 });
+      .toEqual({ shield: 15, oxygen: 43, comms: 42 });
     expect(adjustAllocation({ shield: 0, oxygen: 0, comms: 0 }, 'comms'))
       .toEqual({ shield: 50, oxygen: 50, comms: 0 });
   });
@@ -47,9 +52,10 @@ describe('adjustAllocation', () => {
         for (const comms of [0, 25, 33.3, 85, 100]) {
           const input = { shield, oxygen, comms };
           const result = adjustAllocation(input, changedKey);
-          expect(result[changedKey]).toBe(input[changedKey]);
-          expect(result.shield + result.oxygen + result.comms).toBeCloseTo(100, 12);
+          expect(result[changedKey]).toBe(Math.round(input[changedKey]));
+          expect(result.shield + result.oxygen + result.comms).toBe(100);
           for (const key of keys) {
+            expect(Number.isInteger(result[key])).toBe(true);
             expect(result[key]).toBeGreaterThanOrEqual(0);
             expect(result[key]).toBeLessThanOrEqual(100);
           }
@@ -89,6 +95,55 @@ class TestElement {
   addEventListener(name: string, listener: () => void): void { this.listeners.set(name, listener); }
 }
 
+describe('playtest regressions', () => {
+  it('rounds fractional balanced allocations and preserves exact totals', () => {
+    const input = Object.freeze({ shield: 60.52083333333333, oxygen: 25.25, comms: 14.22916666666667 });
+    expect(adjustAllocation(input, 'shield')).toEqual({ shield: 61, oxygen: 25, comms: 14 });
+  });
+
+  it('exports solid structure footprints without blocking the pad', () => {
+    const outpost = buildOutpost();
+    expect(outpost.colliders).toHaveLength(8);
+    for (const name of ['habitat-dome', 'greenhouse-dome', 'habitat-module', 'rover', 'antenna', 'solar-array']) {
+      const position = outpost.group.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+      expect(outpost.colliders.some((c) => Math.hypot(position.x - c.x, position.z - c.z) <= c.r)).toBe(true);
+    }
+    expect(outpost.colliders.every((c) => Math.hypot(c.x, 4.8 - c.z) > c.r)).toBe(true);
+  });
+
+  it('slides the player outside overlapping structures while grounding to terrain', () => {
+    const direction = new THREE.Vector2(1, 0.5);
+    const colliders = [{ x: 0, z: 0, r: 1 }, { x: 0.5, z: 0, r: 1 }];
+    const player = createPlayerAstronaut(new THREE.Scene(), {
+      terrainHeight: () => 2, center: new THREE.Vector3(), movement: () => direction, colliders,
+    });
+    player.setPosition(-1.4, 0.4);
+    const before = player.getPosition();
+    player.update(0.1);
+    const after = player.getPosition();
+    expect(after.z).toBeGreaterThan(before.z);
+    expect(after.y).toBe(2);
+    for (const c of colliders) expect(Math.hypot(after.x - c.x, after.z - c.z)).toBeGreaterThanOrEqual(c.r + 0.3 - 1e-6);
+    player.setPosition(0, 0);
+    expect(Number.isFinite(player.getPosition().x)).toBe(true);
+  });
+
+  it('clears completed storms and caps long banners while preserving incoming alerts', () => {
+    vi.stubGlobal('document', { createElement: () => new TestElement() });
+    const storm = { ...scheduleStorms([], 600, 1)[0], startAt: 120, durationSeconds: 300, announced: true, hit: true };
+    const render = (elapsed: number, remaining: number, hit = true) => {
+      const container = new TestElement();
+      const alerts = createAlerts(container as unknown as HTMLElement);
+      alerts.update([{ ...storm, hit }], elapsed, remaining);
+      return container.children[0].children;
+    };
+    expect(render(130, 10).map((item) => item.textContent)).toEqual(['🌪️ Storm in progress — power the shield!']);
+    expect(render(131, 0)).toHaveLength(0);
+    expect(render(211, 209)).toHaveLength(0);
+    expect(render(110, 0, false)[0].children[0].textContent).toContain('impact in 10s');
+  });
+});
+
 function mountHud() {
   vi.stubGlobal('document', { createElement: () => new TestElement() });
   const container = new TestElement();
@@ -109,7 +164,7 @@ describe('HUD power controls', () => {
     const { onAllocate, sliders, labels, title } = mountHud();
     const initial = createInitialState().allocation;
     expect(sliders.map((slider) => Number(slider.value))).toEqual(keys.map((key) => initial[key]));
-    expect(labels.map((label) => label.textContent)).toEqual(keys.map((key) => `${initial[key]}%`));
+    expect(labels.map((label) => label.textContent)).toEqual(keys.map((key) => `${Math.round(initial[key])}%`));
     expect(sliders.map((slider) => slider.attributes.get('aria-label')))
       .toEqual(['Shield power', 'Oxygen power', 'Comms power']);
     for (const slider of sliders) {

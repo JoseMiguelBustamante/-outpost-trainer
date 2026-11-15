@@ -71,7 +71,9 @@ function boot(): void {
   hudEl.appendChild(joystick);
   let stickPointer: number | null = null;
   function resetStick(): void {
+    const pointer = stickPointer;
     stickPointer = null;
+    if (pointer !== null && joystick.hasPointerCapture(pointer)) joystick.releasePointerCapture(pointer);
     stick.set(0, 0);
     knob.style.transform = 'translate(0px, 0px)';
   }
@@ -79,25 +81,36 @@ function boot(): void {
     const rect = joystick.getBoundingClientRect();
     stick.set((event.clientX - rect.left - rect.width / 2) / 34,
       (event.clientY - rect.top - rect.height / 2) / 34).clampLength(0, 1);
+    const magnitude = stick.length();
+    if (magnitude <= 0.12) stick.set(0, 0);
+    else stick.multiplyScalar((magnitude - 0.12) / (0.88 * magnitude));
     knob.style.transform = `translate(${stick.x * 34}px, ${stick.y * 34}px)`;
   };
-  joystick.addEventListener('pointerdown', (event) => {
-    if (stickPointer !== null) return;
+  const consumeStickEvent = (event: Event): void => {
     event.preventDefault();
+    event.stopPropagation();
+  };
+  joystick.addEventListener('pointerdown', (event) => {
+    consumeStickEvent(event);
+    if (stickPointer !== null) return;
+    audio.unlock();
     stickPointer = event.pointerId;
     joystick.setPointerCapture(event.pointerId);
     moveStick(event);
   });
   joystick.addEventListener('pointermove', (event) => {
+    consumeStickEvent(event);
     if (event.pointerId === stickPointer) moveStick(event);
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
     joystick.addEventListener(type, (event) => {
+      consumeStickEvent(event);
       if ((event as PointerEvent).pointerId === stickPointer) resetStick();
     });
   }
   const player = createPlayerAstronaut(game.scene, {
     center: outpostPos,
+    colliders: game.outpost.colliders,
     terrainHeight: terrainHeightAt,
     movement: () => {
       if (paused || state.gameOver) return new THREE.Vector2();
@@ -105,7 +118,8 @@ function boot(): void {
         Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')),
         Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')),
       )).clampLength(0, 1);
-      const forward = game.cameraRig.controls.target.clone().sub(game.cameraRig.camera.position);
+      // Use the current rendered camera orientation, independent of follow lerping.
+      const forward = game.cameraRig.camera.getWorldDirection(new THREE.Vector3());
       forward.y = 0;
       forward.normalize();
       const right = new THREE.Vector3(-forward.z, 0, forward.x);
@@ -124,7 +138,7 @@ function boot(): void {
   // Click-to-collect via raycast.
   const ndc = new THREE.Vector2();
   canvas.addEventListener('pointerdown', (ev: PointerEvent) => {
-    if (!scanner) return;
+    if (ev.target !== canvas || !scanner) return;
     const rect = canvas.getBoundingClientRect();
     ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -205,7 +219,7 @@ function boot(): void {
       }
     }
     hud.update(state);
-    alerts.update(schedule, state.elapsed);
+    alerts.update(schedule, state.elapsed, state.stormRemaining);
 
     // First-time announcements play the storm alarm once per event.
     for (const storm of schedule) {
