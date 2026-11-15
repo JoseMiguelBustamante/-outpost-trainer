@@ -92,7 +92,19 @@ export function createOverlays(container: HTMLElement, onRetry: () => void): Ove
   retry.className = 'overlay-cta';
   retry.textContent = '🔁 Retry mission';
   retry.addEventListener('click', onRetry);
-  card.appendChild(retry);
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;';
+  retry.style.padding = '12px 14px';
+  actions.appendChild(retry);
+  const science = document.createElement('a');
+  science.className = 'overlay-cta overlay-science-link';
+  science.textContent = '🔬 View science';
+  science.href = '/science.html';
+  science.target = '_blank';
+  science.rel = 'noopener';
+  science.style.cssText = 'display: inline-flex; align-items: center; padding: 12px 14px; background: transparent; border: 1px solid #7fd8ff; color: #7fd8ff; text-decoration: none;';
+  actions.appendChild(science);
+  card.appendChild(actions);
   overlay.appendChild(card);
   root.appendChild(overlay);
 
@@ -168,6 +180,15 @@ export function createTutorial(
   start.textContent = '🚀 Start mission';
   start.addEventListener('click', onStart);
   card.appendChild(start);
+
+  const science = document.createElement('a');
+  science.className = 'overlay-cta overlay-science-link';
+  science.textContent = '🔬 View science';
+  science.href = '/science.html';
+  science.target = '_blank';
+  science.rel = 'noopener';
+  science.style.cssText = 'display: block; width: fit-content; margin: 12px auto 0; padding: 8px 12px; min-height: 44px; background: transparent; color: #7fd8ff; font-size: 13px; font-weight: 400; text-underline-offset: 3px;';
+  card.appendChild(science);
 
   overlay.appendChild(card);
   container.appendChild(overlay);
