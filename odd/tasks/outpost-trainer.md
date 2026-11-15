@@ -33,7 +33,7 @@ and every decision splits one shared power budget between shield, oxygen, and co
 - [x] T3 — Core sim: power budget, shield/oxygen/comms meters, day/night cycle (commit: 0262974)
 - [x] T4 — DONKI integration: fetch + cache + event-to-gameplay mapping (commit: abc85fe)
 - [ ] T5 — Scanner mechanic + resource deposits in 3D scene
-- [ ] T6 — UI: game over + tutorial + storm visual feedback + tooltips + polish + Web Audio sounds (scope locked with user 2026-11-14)
+- [~] T6 — UI: game over + tutorial + storm feedback + tooltips + sounds — CORE SHIPPED; visual direction + polish pending user artboard pick
 - [ ] T7 — Science-behind-it page + build/deploy prep + presentation notes
 
 ## Evidence / commits
@@ -43,3 +43,4 @@ and every decision splits one shared power budget between shield, oxygen, and co
 - T3: `0262974` feat: core simulation loop — verified: vitest 16/16 (test-first: RED observed), tsc, vite build, server 200. Test-first applied: pure deterministic sim engine made RED→GREEN possible.
 - T4: `abc85fe` feat: DONKI integration — verified: vitest 31/31 (test-first on mappers+scheduler), tsc, vite build, server 200. Live findings: DEMO_KEY rate-limited (50/day) and gateway returns 200 with error object -> hardened non-list detection; CORS confirmed open (*). Embedded real fallback (CME 336km/s 2026-10-25, Gannon GST Kp 9.0 2024-05-10). For demo day: register a free NASA API key to show live data.
 - L5 (2026-11-14): User requested T6 UI improvement, showing an AI-generated reference (mission banner, resource chips incl. AGUA/ALIMENTOS, bottom action bar). Decision: adopt visual language only (mission banner, compact meters, bottom action bar, storm feedback); reject water/food/crop mechanics — outside locked Core 4 scope. Design directions in design/outpost-hud-t6/ (01-mission-console, 02-kid-arcade, 03-focus-telemetry).
+- L6 (2026-11-14): T6 implemented inline (artboard 01 Mission Console as working direction). Tutorial overlay at boot (sim paused), game over/victory overlay (oxygen|shield|survived) with storms survived + day summary, Web Audio synth sounds (storm alarm per DONKI event, harvest pop, defeat sting, victory arpeggio) unlocked on first gesture, mission banner, meter tooltips. Tests: 54 passing (9 new overlay helpers). Commit: 5a2c84b (T6 UI). Deployed, bundle verified live. Remaining T6: apply user's chosen artboard direction fully (01/02/03 pending their pick from /design-preview/) + polish.
