@@ -11,10 +11,10 @@ export interface HudHandle {
   update: (s: GameState) => void;
 }
 
-const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string }> = [
-  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.' },
-  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. If it hits 0, the mission fails.' },
-  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Missions need comms alive to score.' },
+const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string; powerHint: string }> = [
+  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.', powerHint: 'stops storm damage' },
+  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. If it hits 0, the mission fails.', powerHint: 'keeps the crew alive' },
+  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Missions need comms alive to score.', powerHint: 'contact with Earth' },
 ];
 
 /** Keep the moved slider fixed and share the remaining budget proportionally. */
@@ -106,6 +106,9 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   allocTitle.textContent = '⚡ Power (auto-balances to 100%)';
   allocPanel.setAttribute('aria-label', 'Power allocation — shared battery');
   allocPanel.appendChild(allocTitle);
+  const allocSub = el('div', 'hud-alloc-sub');
+  allocSub.textContent = 'One battery, three systems — what one takes, the others lose.';
+  allocPanel.appendChild(allocSub);
 
   const sliders = new Map<string, HTMLInputElement>();
   const values = new Map<string, HTMLElement>();
@@ -130,7 +133,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     label.textContent = m.icon;
     const slider = document.createElement('input');
     slider.type = 'range';
-    slider.setAttribute('aria-label', `${m.label} power`);
+    slider.setAttribute('aria-label', `${m.label} power — ${m.powerHint}`);
     slider.min = '0';
     slider.max = '100';
     // Accept raw input; adjustAllocation apportions it into whole percentages.
@@ -147,6 +150,10 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     row.appendChild(label);
     row.appendChild(slider);
     row.appendChild(val);
+    const hint = el('span', 'hud-alloc-hint');
+    hint.textContent = m.powerHint;
+    hint.title = m.hint;
+    row.appendChild(hint);
     allocPanel.appendChild(row);
   }
   root.appendChild(allocPanel);

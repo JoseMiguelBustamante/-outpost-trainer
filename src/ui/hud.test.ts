@@ -166,7 +166,11 @@ describe('HUD power controls', () => {
     expect(sliders.map((slider) => Number(slider.value))).toEqual(keys.map((key) => initial[key]));
     expect(labels.map((label) => label.textContent)).toEqual(keys.map((key) => `${Math.round(initial[key])}%`));
     expect(sliders.map((slider) => slider.attributes.get('aria-label')))
-      .toEqual(['Shield power', 'Oxygen power', 'Comms power']);
+      .toEqual([
+        'Shield power — stops storm damage',
+        'Oxygen power — keeps the crew alive',
+        'Comms power — contact with Earth',
+      ]);
     for (const slider of sliders) {
       expect([slider.type, slider.min, slider.max, slider.step]).toEqual(['range', '0', '100', 'any']);
     }

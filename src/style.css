@@ -171,11 +171,27 @@ body {
   margin-bottom: 4px;
 }
 
+.hud-alloc-sub {
+  font-size: 11px;
+  color: #b7c1d4;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
 .hud-alloc-row {
   display: grid;
   grid-template-columns: 22px 1fr 40px;
   align-items: center;
   gap: 8px;
+}
+
+.hud-alloc-hint {
+  grid-column: 2 / 4;
+  font-size: 10.5px;
+  color: #b7c1d4;
+  line-height: 1.3;
+  margin-top: -2px;
+  cursor: help;
 }
 
 .hud-alloc-row input[type='range'] {

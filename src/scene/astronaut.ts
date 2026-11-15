@@ -43,7 +43,7 @@ export function createPlayerAstronaut(scene: THREE.Scene, opts: PlayerAstronautO
   scene.add(group);
   let walkTime = 0;
   const setPosition = (x: number, z: number): void => {
-    const offset = new THREE.Vector2(x - opts.center.x, z - opts.center.z).clampLength(0, 28);
+    const offset = new THREE.Vector2(x - opts.center.x, z - opts.center.z).clampLength(0, 72);
     x = opts.center.x + offset.x;
     z = opts.center.z + offset.y;
     // Iterative projection keeps tangential movement instead of cancelling it.
