@@ -3,15 +3,19 @@
 
 import * as THREE from 'three';
 import { createGameScene } from './scene';
-import { createInitialState, tick, type GameState } from './sim';
+import { createInitialState, tick, MAX_RESOURCE, type GameState } from './sim';
 import { applyHarvest, type Deposit } from './game';
 import { createPlayerAstronaut } from './scene/astronaut';
+import { createStormVisual } from './scene/storm-visual';
 import { generateDeposits } from './game';
 import { createScanner, type ScannerHandle } from './scene/scanner';
 import { createHud } from './ui/hud';
 import { createAlerts } from './ui/alerts';
 import { createOverlays, createTutorial } from './ui/overlays';
 import { createAudio } from './ui/audio';
+import { missionProgress } from './game/missions';
+import { createObjectives } from './ui/objectives';
+import { createLogbook, appendLogEntry, discoveryName, type LogEntry } from './ui/logbook';
 import { fetchDonkiEvents, stormsFromEvents } from './donki/donki';
 import { scheduleStorms, updateStorms, type ScheduledStorm } from './donki/storms';
 
@@ -27,10 +31,12 @@ function boot(): void {
   if (!hudEl) throw new Error('#hud element not found');
 
   const game = createGameScene(canvas);
+  const stormVisual = createStormVisual(game.scene);
+  game.scene.add(stormVisual.group);
   window.addEventListener('resize', game.handleResize);
 
   // --- scanner + deposits ---
-  const deposits = generateDeposits(game.terrainConfig, SEED, 9, (x, z) => {
+  let deposits = generateDeposits(game.terrainConfig, SEED, 9, (x, z) => {
     // USAR terrainHeight real (deterministic) via scene re-export
     return terrainHeightAt(x, z);
   });
@@ -131,7 +137,11 @@ function boot(): void {
   // All collection paths share validation, reward, removal, and sound.
   function collect(deposit: Deposit): void {
     if (paused || state.gameOver || !scanner?.harvest(deposit)) return;
+    const previousMaterials = state.materials;
     state = applyHarvest(state, deposit);
+    stats.depositsCollected++;
+    recordLog(`Named discovery: ${discoveryName(deposit.id)} — materials +${Number((state.materials - previousMaterials).toFixed(2))}`);
+    advanceObjectives();
     audio.harvest();
   }
 
@@ -153,13 +163,55 @@ function boot(): void {
     state = { ...state, allocation: alloc };
   });
   const alerts = createAlerts(hudEl);
+  const stats = { depositsCollected: 0 };
+  let progress = missionProgress(state, stats);
+  let entries: LogEntry[] = [];
+  let activeStorm: ScheduledStorm | null = null;
+  const missionBanner = hud.root.querySelector<HTMLElement>('.hud-mission')!;
+  const objectives = createObjectives(missionBanner);
+  const logbook = createLogbook(hudEl, (open) => {
+    keys.clear();
+    resetStick();
+    paused = open;
+    simAccumulator = 0;
+  });
+  function recordLog(text: string): void {
+    entries = appendLogEntry(entries, state.elapsed, text);
+    logbook.update(entries);
+  }
+  function advanceObjectives(): void {
+    progress = missionProgress(state, stats, progress.stageIndex);
+    for (const stage of progress.completed) {
+      state = { ...state, materials: Math.min(MAX_RESOURCE, state.materials + stage.rewardMaterials) };
+      objectives.celebrate(stage, performance.now());
+      recordLog(`Stage completed: ${stage.title} — +${stage.rewardMaterials} materials`);
+    }
+  }
 
   // --- overlays: tutorial at boot, game over / victory at the end ---
   const audio = createAudio();
   let paused = true; // sim waits until the tutorial is dismissed
 
   const resetMission = (): void => {
-    state = createInitialState(MISSION_LENGTH);
+    state = createInitialState(MISSION_LENGTH, state.difficulty);
+    stats.depositsCollected = 0;
+    progress = missionProgress(state, stats);
+    objectives.reset();
+    entries = [];
+    logbook.update(entries);
+    activeStorm = null;
+    simAccumulator = 0;
+    // Reuse the scanner constructor so retry restores both deposit state and visuals.
+    scanner?.group.removeFromParent();
+    scanner?.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.geometry.dispose();
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose();
+    });
+    deposits = generateDeposits(game.terrainConfig, SEED, 9, terrainHeightAt);
+    scanner = createScanner(deposits, outpostPos);
+    game.scene.add(scanner.group);
+    schedule = scheduleStorms(schedule, MISSION_LENGTH, SEED);
     alarmed.clear();
     endedHandled = false;
     overlays.hideGameOver();
@@ -167,7 +219,10 @@ function boot(): void {
   };
   const overlays = createOverlays(hudEl, resetMission);
 
-  const tutorial = createTutorial(hudEl, () => {
+  const tutorial = createTutorial(hudEl, (difficulty) => {
+    state = createInitialState(MISSION_LENGTH, difficulty);
+    progress = missionProgress(state, stats);
+    simAccumulator = 0;
     tutorial.remove();
     audio.unlock();
     paused = false;
@@ -184,6 +239,15 @@ function boot(): void {
   const scanWrap = document.createElement('div');
   scanWrap.className = 'hud-actions';
   scanWrap.appendChild(scanBtn);
+  const logBtn = document.createElement('button');
+  logBtn.className = 'hud-scan-btn hud-log-btn';
+  logBtn.textContent = '📖 LOG';
+  logBtn.title = 'Science logbook: discoveries, survived NASA storms, and completed stages. Escape closes.';
+  logBtn.setAttribute('aria-haspopup', 'dialog');
+  logBtn.addEventListener('click', () => {
+    if (!paused && !state.gameOver) logbook.toggle();
+  });
+  scanWrap.appendChild(logBtn);
   hudEl.appendChild(scanWrap);
   window.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'e' || e.key === 'E') scanner?.pulse();
@@ -212,13 +276,26 @@ function boot(): void {
 
     if (!paused && !state.gameOver) {
       simAccumulator += delta;
-      while (simAccumulator >= SIM_DT) {
+      while (simAccumulator >= SIM_DT && !state.gameOver) {
+        const startingStorm = state.stormRemaining <= 0
+          ? schedule.find((storm) => !storm.hit && state.elapsed + SIM_DT >= storm.startAt) : undefined;
         state = updateStorms(schedule, state, SIM_DT);
+        if (startingStorm?.hit) activeStorm = startingStorm;
+        const survived = state.stormsSurvived;
         state = tick(state, SIM_DT);
+        if (state.stormsSurvived > survived && activeStorm) {
+          recordLog(`Storm survived: ${activeStorm.summary} — NASA DONKI ${activeStorm.sourceId}`);
+          activeStorm = null;
+        }
+        advanceObjectives();
         simAccumulator -= SIM_DT;
       }
     }
     hud.update(state);
+    objectives.update(state, stats, progress, now);
+    // Keep the opener focusable while the native modal owns focus, so closing
+    // with Escape restores focus to LOG rather than dropping it onto the page.
+    logBtn.disabled = state.gameOver;
     alerts.update(schedule, state.elapsed, state.stormRemaining);
 
     // First-time announcements play the storm alarm once per event.
@@ -244,6 +321,10 @@ function boot(): void {
     }
     scanner?.update(delta);
 
+    // DONKI maps a 1420 km/s CME to ~2.36 damage/s: / 2.7 gives ~0.87.
+    const intensity = THREE.MathUtils.clamp((state.activeEvent?.shieldDamagePerSecond ?? 0) / 2.7, 0, 1);
+    stormVisual.setActive(state.stormRemaining > 0, intensity);
+    stormVisual.update(delta);
     game.update(delta);
     requestAnimationFrame(frame);
   };

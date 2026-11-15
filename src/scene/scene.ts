@@ -39,6 +39,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
   renderer.setClearColor('#050508'); // space black; stars provide the sky
 
   const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#050508');
   scene.fog = new THREE.Fog('#050508', 90, 240);
 
   const terrain = buildTerrain(TERRAIN_CONFIG);
