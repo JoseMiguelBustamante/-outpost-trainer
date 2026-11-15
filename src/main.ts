@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { createGameScene } from './scene';
 import { createInitialState, tick, type GameState } from './sim';
-import { applyHarvest } from './game';
+import { applyHarvest, type Deposit } from './game';
+import { createPlayerAstronaut } from './scene/astronaut';
 import { generateDeposits } from './game';
 import { createScanner, type ScannerHandle } from './scene/scanner';
 import { createHud } from './ui/hud';
@@ -43,6 +44,83 @@ function boot(): void {
     return game.terrainHeight(x, z);
   }
 
+  // Replace the presentation-only suit without changing the outpost builder's API.
+  const staticAstronaut = game.outpost.group.getObjectByName('astronaut');
+  staticAstronaut?.removeFromParent();
+  const keys = new Set<string>();
+  const stick = new THREE.Vector2();
+  const movementKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'];
+  const isFormControl = (target: EventTarget | null): boolean =>
+    target instanceof HTMLElement && (target.matches('input, button, select, textarea') || target.isContentEditable);
+  window.addEventListener('keydown', (event) => {
+    if (!movementKeys.includes(event.code) || isFormControl(event.target)) return;
+    event.preventDefault();
+    keys.add(event.code);
+  });
+  window.addEventListener('keyup', (event) => keys.delete(event.code));
+  window.addEventListener('blur', () => {
+    keys.clear();
+    resetStick();
+  });
+  const joystick = document.createElement('div');
+  joystick.className = 'player-joystick';
+  joystick.setAttribute('aria-label', 'Drag to walk. Desktop: WASD or arrow keys; E to scan.');
+  const knob = document.createElement('div');
+  knob.className = 'player-joystick-knob';
+  joystick.appendChild(knob);
+  hudEl.appendChild(joystick);
+  let stickPointer: number | null = null;
+  function resetStick(): void {
+    stickPointer = null;
+    stick.set(0, 0);
+    knob.style.transform = 'translate(0px, 0px)';
+  }
+  const moveStick = (event: PointerEvent): void => {
+    const rect = joystick.getBoundingClientRect();
+    stick.set((event.clientX - rect.left - rect.width / 2) / 34,
+      (event.clientY - rect.top - rect.height / 2) / 34).clampLength(0, 1);
+    knob.style.transform = `translate(${stick.x * 34}px, ${stick.y * 34}px)`;
+  };
+  joystick.addEventListener('pointerdown', (event) => {
+    if (stickPointer !== null) return;
+    event.preventDefault();
+    stickPointer = event.pointerId;
+    joystick.setPointerCapture(event.pointerId);
+    moveStick(event);
+  });
+  joystick.addEventListener('pointermove', (event) => {
+    if (event.pointerId === stickPointer) moveStick(event);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    joystick.addEventListener(type, (event) => {
+      if ((event as PointerEvent).pointerId === stickPointer) resetStick();
+    });
+  }
+  const player = createPlayerAstronaut(game.scene, {
+    center: outpostPos,
+    terrainHeight: terrainHeightAt,
+    movement: () => {
+      if (paused || state.gameOver) return new THREE.Vector2();
+      const input = stick.clone().add(new THREE.Vector2(
+        Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft')),
+        Number(keys.has('KeyS') || keys.has('ArrowDown')) - Number(keys.has('KeyW') || keys.has('ArrowUp')),
+      )).clampLength(0, 1);
+      const forward = game.cameraRig.controls.target.clone().sub(game.cameraRig.camera.position);
+      forward.y = 0;
+      forward.normalize();
+      const right = new THREE.Vector3(-forward.z, 0, forward.x);
+      return new THREE.Vector2(right.x * input.x - forward.x * input.y,
+        right.z * input.x - forward.z * input.y);
+    },
+  });
+
+  // All collection paths share validation, reward, removal, and sound.
+  function collect(deposit: Deposit): void {
+    if (paused || state.gameOver || !scanner?.harvest(deposit)) return;
+    state = applyHarvest(state, deposit);
+    audio.harvest();
+  }
+
   // Click-to-collect via raycast.
   const ndc = new THREE.Vector2();
   canvas.addEventListener('pointerdown', (ev: PointerEvent) => {
@@ -51,11 +129,7 @@ function boot(): void {
     ndc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
     const deposit = scanner.pick(ndc, game.cameraRig.camera);
-    if (deposit) {
-      state = applyHarvest(state, deposit);
-      scanner.harvest(deposit);
-      audio.harvest();
-    }
+    if (deposit) collect(deposit);
   });
 
   // --- HUD ---
@@ -90,6 +164,7 @@ function boot(): void {
   const scanBtn = document.createElement('button');
   scanBtn.className = 'hud-scan-btn';
   scanBtn.textContent = '🔍 SCAN';
+  scanBtn.title = 'Reveal resources (E). Walk with WASD / arrows or the touch joystick to collect; clicking also works.';
   scanBtn.style.pointerEvents = 'auto';
   scanBtn.addEventListener('click', () => scanner?.pulse());
   const scanWrap = document.createElement('div');
@@ -148,6 +223,11 @@ function boot(): void {
       else audio.defeat();
     }
 
+    player.update(delta);
+    game.cameraRig.follow(player.getPosition(), delta);
+    if (!paused && !state.gameOver) {
+      for (const deposit of scanner?.nearby(player.getPosition()) ?? []) collect(deposit);
+    }
     scanner?.update(delta);
 
     game.update(delta);

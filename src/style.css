@@ -291,6 +291,40 @@ input:focus-visible {
   outline-offset: 2px;
 }
 
+/* Touch walking stays above the centered scan button, right of the power drawer. */
+.player-joystick {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right));
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  width: 120px;
+  height: 120px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--cyan);
+  border-radius: 50%;
+  background: rgba(10, 14, 24, .7);
+  opacity: .75;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  z-index: 11;
+}
+
+.player-joystick-knob {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--cyan);
+  background: #2c5d8f;
+  pointer-events: none;
+}
+
+@media (any-pointer: coarse) {
+  .player-joystick { display: flex; }
+  .hud-alloc { width: min(230px, calc(100% - 144px - env(safe-area-inset-right))); }
+}
+
 /* --- Full-screen overlays (tutorial, game over) --- */
 .overlay-layer {
   position: absolute;

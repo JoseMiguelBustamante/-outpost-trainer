@@ -20,7 +20,9 @@ export interface ScannerHandle {
    * Deposits are pickable only after being revealed by a scan.
    */
   pick: (ndc: THREE.Vector2, camera: THREE.PerspectiveCamera) => Deposit | null;
-  /** Collect feedback: shrink marker. Returns false if already harvested. */
+  /** Revealed, unharvested deposits within the player's horizontal reach. */
+  nearby: (position: THREE.Vector3, radius?: number) => Deposit[];
+  /** Collect feedback: pop and fade. Returns false if hidden or already harvested. */
   harvest: (deposit: Deposit) => boolean;
 }
 
@@ -28,6 +30,7 @@ interface Marker {
   deposit: Deposit;
   mesh: THREE.Group;
   pickMesh: THREE.Mesh;
+  collectTime: number;
 }
 
 export function createScanner(
@@ -48,12 +51,21 @@ export function createScanner(
         color: COLOR_BY_TYPE[d.type],
         flatShading: true,
         emissive: COLOR_BY_TYPE[d.type],
-        emissiveIntensity: 0.35,
+        emissiveIntensity: 2.2,
         roughness: 0.3,
       }),
     );
     crystal.position.y = 1.0;
     g.add(crystal);
+    const beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.18, 3.6, 8),
+      new THREE.MeshBasicMaterial({
+        color: COLOR_BY_TYPE[d.type], transparent: true, opacity: 0.55,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }),
+    );
+    beacon.position.y = 2.4;
+    g.add(beacon);
 
     // Generous invisible pick sphere (kids aim with a mouse, not a hawk).
     const pickMesh = new THREE.Mesh(
@@ -67,7 +79,7 @@ export function createScanner(
     g.visible = false; // hidden until scanned
     group.add(g);
     pickables.push(pickMesh);
-    markers.push({ deposit: d, mesh: g, pickMesh });
+    markers.push({ deposit: d, mesh: g, pickMesh, collectTime: -1 });
   }
 
   // Scan pulse: expanding ground ring.
@@ -97,6 +109,19 @@ export function createScanner(
     const time = performance.now() / 1000;
     for (const m of markers) {
       if (!m.mesh.visible) continue;
+      if (m.collectTime >= 0) {
+        m.collectTime += dt;
+        const t = Math.min(1, m.collectTime / 0.4);
+        m.mesh.scale.setScalar(1 + Math.sin(t * Math.PI) * 0.8);
+        for (const child of m.mesh.children) {
+          const mesh = child as THREE.Mesh<THREE.BufferGeometry, THREE.Material>;
+          if (mesh === m.pickMesh) continue;
+          mesh.material.transparent = true;
+          mesh.material.opacity = (1 - t) * (child === m.mesh.children[1] ? 0.55 : 1);
+        }
+        if (t >= 1) m.mesh.visible = false;
+        continue;
+      }
       m.mesh.children[0].position.y = 1.0 + Math.sin(time * 2 + m.deposit.id) * 0.15;
       m.mesh.children[0].rotation.y += dt * 1.2;
     }
@@ -124,23 +149,15 @@ export function createScanner(
       });
       return hit ? (markerByPick.get(hit.object as THREE.Mesh)!.deposit ?? null) : null;
     },
+    nearby: (position, radius = 2.2) => markers
+      .filter((m) => m.mesh.visible && !m.deposit.harvested
+        && Math.hypot(m.deposit.x - position.x, m.deposit.z - position.z) <= radius)
+      .map((m) => m.deposit),
     harvest: (deposit) => {
       const marker = markers.find((m) => m.deposit.id === deposit.id);
-      if (!marker || marker.deposit.harvested) return false;
+      if (!marker || !marker.mesh.visible || marker.deposit.harvested) return false;
       marker.deposit.harvested = true;
-      // Quick collect animation: sink into the ground, then hide.
-      const m = marker.mesh;
-      const start = performance.now();
-      const anim = (): void => {
-        const t = (performance.now() - start) / 400;
-        if (t >= 1) {
-          m.visible = false;
-          return;
-        }
-        m.scale.setScalar(Math.max(0.01, 1 - t));
-        requestAnimationFrame(anim);
-      };
-      anim();
+      marker.collectTime = 0;
       return true;
     },
   };

@@ -5,6 +5,8 @@ export interface CameraRig {
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
   update: () => void;
+  /** Smoothly translate both orbit target and camera, preserving angle and zoom. */
+  follow: (position: THREE.Vector3, dt: number) => void;
   /** Call on window resize. */
   handleResize: (canvas: HTMLCanvasElement) => void;
 }
@@ -38,6 +40,12 @@ export function createCameraRig(canvas: HTMLCanvasElement, target: THREE.Vector3
     camera,
     controls,
     update: () => controls.update(),
+    follow: (position, dt) => {
+      const next = position.clone().add(new THREE.Vector3(0, 0.8, 0));
+      next.lerpVectors(controls.target, next, 1 - Math.exp(-5 * dt));
+      camera.position.add(next.clone().sub(controls.target));
+      controls.target.copy(next);
+    },
     handleResize,
   };
 }
