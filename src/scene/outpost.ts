@@ -9,7 +9,16 @@ export interface OutpostBuild {
 /** Shared palette: warm ceramic, safety orange, cool instrument lighting. */
 function outpostMaterials() {
   return {
-    hull: new THREE.MeshStandardMaterial({ color: '#fff1dc', roughness: 0.62 }),
+    hull: new THREE.MeshStandardMaterial({ color: '#fff1dc', roughness: 0.62, flatShading: true }),
+    white: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.65 }),
+    rubber: new THREE.MeshStandardMaterial({ color: '#28313b', roughness: 0.95 }),
+    soil: new THREE.MeshStandardMaterial({ color: '#654732', roughness: 1 }),
+    plant: new THREE.MeshStandardMaterial({ color: '#68b84b', roughness: 0.9 }),
+    led: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: 1.2 }),
+    greenhouse: new THREE.MeshStandardMaterial({
+      color: '#7edee8', transparent: true, opacity: 0.45,
+      roughness: 0.25, flatShading: true, depthWrite: false,
+    }),
     accent: new THREE.MeshStandardMaterial({ color: '#e98b36', roughness: 0.55 }),
     border: new THREE.MeshStandardMaterial({ color: '#a94f25', roughness: 0.75 }),
     metal: new THREE.MeshStandardMaterial({ color: '#9cabb8', metalness: 0.55, roughness: 0.45 }),
@@ -25,12 +34,13 @@ function outpostMaterials() {
 
 type Materials = ReturnType<typeof outpostMaterials>;
 
-/** One smooth ceramic hemisphere with a raised, visible glass crown. */
-function habitatDome(mats: Materials, x: number, z: number, radius: number): THREE.Group {
+/** Faceted panel shell with a glass crown; the smaller shell houses crops. */
+function habitatDome(mats: Materials, x: number, z: number, radius: number, greenhouse = false): THREE.Group {
   const g = new THREE.Group();
-  g.name = 'habitat-dome';
+  g.name = greenhouse ? 'greenhouse-dome' : 'habitat-dome';
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), mats.hull,
+    new THREE.SphereGeometry(radius, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+    greenhouse ? mats.greenhouse : mats.hull,
   );
   dome.position.y = radius * 0.15;
   dome.castShadow = true;
@@ -45,6 +55,48 @@ function habitatDome(mats: Materials, x: number, z: number, radius: number): THR
   const ring = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.02, radius * 1.06, radius * 0.18, 24), mats.accent);
   ring.position.y = radius * 0.08;
   g.add(ring);
+
+  // The rings follow the hemisphere profile, with a small clearance over facets.
+  const trimGeometry = new THREE.TorusGeometry(1, 0.018, 6, 48);
+  for (const height of [0.25, 0.55, 0.8]) {
+    const trim = new THREE.Mesh(trimGeometry, mats.accent);
+    trim.rotation.x = -Math.PI / 2;
+    trim.scale.setScalar(radius * Math.sqrt(1 - height * height) + 0.025);
+    trim.position.y = radius * (0.15 + height);
+    g.add(trim);
+  }
+  const slitGeometry = new THREE.BoxGeometry(radius * 0.24, 0.14, 0.07);
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 12 + i * Math.PI / 3;
+    const slit = new THREE.Mesh(slitGeometry, mats.light);
+    slit.position.set(Math.sin(angle) * radius * 0.97, radius * 0.32, Math.cos(angle) * radius * 0.97);
+    slit.rotation.y = angle;
+    g.add(slit);
+  }
+  if (greenhouse) {
+    const soilGeometry = new THREE.BoxGeometry(2, 0.12, 0.42);
+    const plantGeometry = new THREE.BoxGeometry(0.28, 0.42, 0.28);
+    for (const row of [-0.65, 0, 0.65]) {
+      const soil = new THREE.Mesh(soilGeometry, mats.soil);
+      soil.position.set(0, 0.28, row);
+      g.add(soil);
+      for (const column of [-0.65, 0, 0.65]) {
+        const plant = new THREE.Mesh(plantGeometry, mats.plant);
+        plant.position.set(column, 0.55, row);
+        g.add(plant);
+      }
+    }
+    const led = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.1), mats.led);
+    led.position.y = radius * 1.14;
+    g.add(led);
+  } else {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.25, 0.16), mats.accent);
+    frame.position.set(0, 0.73, radius * 0.98);
+    g.add(frame);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.05, 0.18), mats.metal);
+    door.position.set(0, 0.69, radius * 0.98 + 0.04);
+    g.add(door);
+  }
   g.position.set(x, 0, z);
   return g;
 }
@@ -219,18 +271,160 @@ function platform(mats: Materials): THREE.Group {
   return g;
 }
 
+/** Elliptical rails match the existing pad, with twelve upright posts. */
+function railing(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'platform-railing';
+  const postGeometry = new THREE.CylinderGeometry(0.045, 0.045, 0.85, 6);
+  const dotGeometry = new THREE.SphereGeometry(0.085, 8, 6);
+  for (let i = 0; i < 12; i++) {
+    const angle = i * Math.PI / 6;
+    const x = 9.25 * Math.cos(angle);
+    const z = 9.25 * 0.55 * Math.sin(angle);
+    const post = new THREE.Mesh(postGeometry, mats.metal);
+    post.position.set(x, 0.48, z);
+    g.add(post);
+    if (i % 2 === 0) {
+      const dot = new THREE.Mesh(dotGeometry, mats.light);
+      dot.position.set(x, 0.94, z);
+      g.add(dot);
+    }
+  }
+  const railGeometry = new THREE.TorusGeometry(9.25, 0.035, 6, 64);
+  for (const y of [0.42, 0.85]) {
+    const rail = new THREE.Mesh(railGeometry, mats.accent);
+    rail.rotation.x = -Math.PI / 2;
+    rail.scale.y = 0.55;
+    rail.position.y = y;
+    g.add(rail);
+  }
+  return g;
+}
+
+/** Four flat arrow outlines lead across the open front apron to the dome door. */
+function padChevrons(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'landing-chevrons';
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.55, -0.3);
+  shape.lineTo(0, 0.2);
+  shape.lineTo(0.55, -0.3);
+  shape.lineTo(0.55, -0.06);
+  shape.lineTo(0, 0.44);
+  shape.lineTo(-0.55, -0.06);
+  shape.closePath();
+  const geometry = new THREE.ShapeGeometry(shape);
+  for (let i = 0; i < 4; i++) {
+    const arrow = new THREE.Mesh(geometry, mats.white);
+    arrow.rotation.x = -Math.PI / 2;
+    arrow.position.set(0, 0.03, 3.05 + i * 0.48);
+    g.add(arrow);
+  }
+  return g;
+}
+
+/** Six-wheel survey rover, parked on the free west apron. */
+function rover(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'rover';
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.45, 0.85), mats.metal);
+  body.position.y = 0.65;
+  g.add(body);
+  const wheelGeometry = new THREE.CylinderGeometry(0.29, 0.29, 0.2, 10);
+  const hubGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.22, 8);
+  for (const x of [-0.58, 0, 0.58]) {
+    for (const z of [-0.53, 0.53]) {
+      const wheel = new THREE.Mesh(wheelGeometry, mats.rubber);
+      wheel.rotation.x = Math.PI / 2;
+      wheel.position.set(x, 0.32, z);
+      g.add(wheel);
+      const hub = new THREE.Mesh(hubGeometry, mats.accent);
+      hub.rotation.x = Math.PI / 2;
+      hub.position.copy(wheel.position);
+      g.add(hub);
+    }
+  }
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.6, 6), mats.metal);
+  mast.position.set(0.45, 1.15, 0);
+  g.add(mast);
+  const headlight = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.16, 0.18), mats.light);
+  headlight.position.set(0.45, 1.46, 0);
+  g.add(headlight);
+  g.position.set(-6.4, 0, 2.6);
+  g.rotation.y = -0.35;
+  return g;
+}
+
+/** A roughly one-metre suit at the main dome entrance (about 35% of its height). */
+function astronaut(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'astronaut';
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.24, 4, 8), mats.white);
+  body.position.y = 0.47;
+  g.add(body);
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), mats.white);
+  helmet.position.y = 0.91;
+  g.add(helmet);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.13, 0.1), mats.light);
+  visor.position.set(0, 0.92, 0.18);
+  g.add(visor);
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.32, 0.18), mats.metal);
+  pack.position.set(0, 0.53, -0.18);
+  g.add(pack);
+  const limbGeometry = new THREE.CapsuleGeometry(0.065, 0.2, 3, 6);
+  const cuffGeometry = new THREE.BoxGeometry(0.14, 0.08, 0.15);
+  for (const side of [-1, 1]) {
+    const leg = new THREE.Mesh(limbGeometry, mats.white);
+    leg.position.set(side * 0.1, 0.2, 0);
+    g.add(leg);
+    const arm = new THREE.Mesh(limbGeometry, mats.white);
+    arm.position.set(side * 0.24, 0.5, 0);
+    arm.rotation.z = side * 0.15;
+    g.add(arm);
+    const cuff = new THREE.Mesh(cuffGeometry, mats.accent);
+    cuff.position.set(side * 0.24, 0.4, 0);
+    g.add(cuff);
+  }
+  g.position.set(0.85, 0.04, 2.8);
+  return g;
+}
+
+/** Low service lines hug the platform, separate from the pressurized corridor. */
+function servicePipes(mats: Materials): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'service-pipes';
+  const routes = [
+    [new THREE.Vector3(-3.5, 0.4, -0.55), new THREE.Vector3(-2.9, 0.2, -1.3), new THREE.Vector3(-2, 0.35, -1.45)],
+    [new THREE.Vector3(-4.4, 0.4, 2.15), new THREE.Vector3(-3, 0.2, 3.4), new THREE.Vector3(2.5, 0.2, 3.5), new THREE.Vector3(4, 0.4, 2.85)],
+  ];
+  const jointGeometry = new THREE.TorusGeometry(0.11, 0.045, 6, 12);
+  for (const points of routes) {
+    const curve = new THREE.CatmullRomCurve3(points);
+    const pipe = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.1, 8, false), mats.metal);
+    g.add(pipe);
+    for (const t of [0, 1]) {
+      const joint = new THREE.Mesh(jointGeometry, mats.accent);
+      joint.position.copy(curve.getPoint(t));
+      joint.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), curve.getTangent(t).normalize());
+      g.add(joint);
+    }
+  }
+  return g;
+}
+
 /** Presentation-only props; group origin and camera center remain stable. */
 export function buildOutpost(): OutpostBuild {
   const mats = outpostMaterials();
   const group = new THREE.Group();
   group.name = 'outpost';
   group.add(habitatDome(mats, 0, 0, 2.6));
-  group.add(habitatDome(mats, 4.5, 1.2, 1.8));
+  group.add(habitatDome(mats, 4.5, 1.2, 1.8, true));
   group.add(habitatModule(mats, -4.2, 0.8, Math.PI / 2));
   group.add(solarArray(mats));
   group.add(antenna(mats, 6.8, -2.5));
   group.add(connector(mats));
   group.add(platform(mats));
+  group.add(railing(mats), padChevrons(mats), rover(mats), astronaut(mats), servicePipes(mats));
   group.position.y = 0.05;
   const center = new THREE.Vector3(0, 1.5, 0);
   return { group, center };

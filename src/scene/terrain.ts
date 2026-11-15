@@ -108,5 +108,55 @@ export function buildTerrain(cfg: TerrainConfig): THREE.Mesh {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'lunarTerrain';
   mesh.receiveShadow = true;
+
+  // Separate seeded stream: decorative placement never changes the height field.
+  // Children preserve the Mesh return type and participate in scene disposal.
+  const random = mulberry32(cfg.seed + 911);
+  const rockGeometry = new THREE.IcosahedronGeometry(1, 0);
+  const rockMaterials = ['#85858e', '#92929b', '#a3a3ac'].map((color) =>
+    new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.98 }),
+  );
+  const innerRadius = Math.max(cfg.flatRadius + 3, 14);
+  const outerRadius = Math.min(cfg.size * 0.43, innerRadius + 15);
+  // Tiny custom terrains need not place props beyond their own bounds.
+  if (outerRadius > innerRadius) {
+    for (let i = 0; i < 12; i++) {
+      const angle = (i + random() * 0.65) * Math.PI * 2 / 12;
+      const radius = innerRadius + random() * (outerRadius - innerRadius);
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const rock = new THREE.Mesh(rockGeometry, rockMaterials[i % rockMaterials.length]);
+      rock.name = `lunar-rock-${i}`;
+      rock.scale.set(0.45 + random() * 0.65, 0.25 + random() * 0.5, 0.4 + random() * 0.65);
+      rock.rotation.set(random() * 0.5, random() * Math.PI * 2, random() * 0.4);
+      rock.position.set(x, terrainHeight(x, z, cfg) + rock.scale.y * 0.35, z);
+      mesh.add(rock);
+    }
+
+    const craterMaterial = new THREE.MeshStandardMaterial({ color: '#85858e', roughness: 1, flatShading: true });
+    for (let i = 0; i < 2; i++) {
+      const angle = 0.6 + i * Math.PI;
+      const radius = innerRadius + (outerRadius - innerRadius) * 0.65;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      // Conform each flattened rim to the sampled terrain to avoid floating arcs.
+      const rimGeometry = new THREE.TorusGeometry(2.4 + i * 0.6, 0.18, 6, 32);
+      rimGeometry.rotateX(-Math.PI / 2);
+      const rimPositions = rimGeometry.attributes.position;
+      const ground = terrainHeight(x, z, cfg);
+      for (let vertex = 0; vertex < rimPositions.count; vertex++) {
+        const localX = rimPositions.getX(vertex);
+        const localZ = rimPositions.getZ(vertex);
+        rimPositions.setY(vertex,
+          rimPositions.getY(vertex) * 0.4 + terrainHeight(x + localX, z + localZ, cfg) - ground + 0.025,
+        );
+      }
+      rimGeometry.computeVertexNormals();
+      const rim = new THREE.Mesh(rimGeometry, craterMaterial);
+      rim.name = `shallow-crater-rim-${i}`;
+      rim.position.set(x, ground, z);
+      mesh.add(rim);
+    }
+  }
   return mesh;
 }
