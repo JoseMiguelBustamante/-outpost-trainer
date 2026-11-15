@@ -1,6 +1,6 @@
 // HUD: renders meters and power sliders from the simulation state.
-// Kid-friendly: big bars, emoji icons, plain language. Minimal styling lives
-// in style.css (#hud children).
+// Mission Console: compact resource chips and touch-friendly power controls.
+// Presentation lives in style.css (#hud children).
 
 import type { GameState, PowerAllocation } from '../sim';
 import { MAX_RESOURCE } from '../sim';
@@ -12,9 +12,9 @@ export interface HudHandle {
 }
 
 const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string }> = [
-  { key: 'shield', icon: '🛡️', label: 'Shield', color: '#4f9df7', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.' },
-  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: '#43d17c', hint: 'The crew breathes constantly. If it hits 0, the mission fails.' },
-  { key: 'comms', icon: '📡', label: 'Comms', color: '#f7b84f', hint: 'Contact with Earth. Missions need comms alive to score.' },
+  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.' },
+  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. If it hits 0, the mission fails.' },
+  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Missions need comms alive to score.' },
 ];
 
 function el(tag: string, className?: string): HTMLElement {
@@ -38,12 +38,16 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
 
   // --- meters panel ---
   const panel = el('div', 'hud-panel');
-  const bars = new Map<string, { fill: HTMLElement; value: HTMLElement }>();
+  panel.setAttribute('aria-label', 'Life support meters');
+  const bars = new Map<string, { row: HTMLElement; fill: HTMLElement; value: HTMLElement }>();
 
   for (const m of METERS) {
     const row = el('div', 'hud-meter');
     const label = el('div', 'hud-meter-label');
-    label.textContent = `${m.icon} ${m.label}`;
+    const icon = el('span', 'hud-meter-icon');
+    icon.textContent = m.icon;
+    icon.setAttribute('aria-hidden', 'true');
+    label.textContent = m.label;
     label.title = m.hint;
     label.setAttribute('aria-label', `${m.label}: ${m.hint}`);
     const track = el('div', 'hud-track');
@@ -51,26 +55,36 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     fill.style.background = m.color;
     const value = el('div', 'hud-value');
     track.appendChild(fill);
+    row.appendChild(icon);
     row.appendChild(label);
-    row.appendChild(track);
     row.appendChild(value);
+    row.appendChild(track);
     panel.appendChild(row);
-    bars.set(m.key, { fill, value });
+    bars.set(m.key, { row, fill, value });
   }
 
   // battery + clock row
   const info = el('div', 'hud-info');
-  const battery = el('div', 'hud-battery');
+  const batteryIcon = el('span', 'hud-meter-icon');
+  batteryIcon.textContent = '🔋';
+  batteryIcon.setAttribute('aria-hidden', 'true');
+  const batteryLabel = el('span', 'hud-meter-label');
+  batteryLabel.textContent = 'Battery';
+  const battery = el('div', 'hud-battery hud-value');
   const clock = el('div', 'hud-clock');
-  info.appendChild(battery);
-  info.appendChild(clock);
+  const batteryTrack = el('div', 'hud-track');
+  const batteryFill = el('div', 'hud-fill');
+  batteryFill.style.background = 'var(--battery)';
+  batteryTrack.appendChild(batteryFill);
+  info.append(batteryIcon, batteryLabel, battery, batteryTrack, clock);
   panel.appendChild(info);
   root.appendChild(panel);
 
   // --- power allocation sliders ---
   const allocPanel = el('div', 'hud-alloc');
   const allocTitle = el('div', 'hud-alloc-title');
-  allocTitle.textContent = '⚡ Power (must add up!)';
+  allocTitle.textContent = '⚡ Power';
+  allocPanel.setAttribute('aria-label', 'Power allocation — shared battery');
   allocPanel.appendChild(allocTitle);
 
   const sliders = new Map<string, HTMLInputElement>();
@@ -90,6 +104,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     label.textContent = m.icon;
     const slider = document.createElement('input');
     slider.type = 'range';
+    slider.setAttribute('aria-label', `${m.label} power`);
     slider.min = '0';
     slider.max = '100';
     slider.step = '5';
@@ -123,15 +138,13 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
       const v = s[m.key];
       b.fill.style.width = `${(v / MAX_RESOURCE) * 100}%`;
       b.value.textContent = `${Math.round(v)}`;
+      b.row.classList.toggle('crit', v < 20);
     }
-    battery.textContent = `🔋 ${Math.round(s.battery)}`;
+    battery.textContent = `${Math.round(s.battery)}`;
+    batteryFill.style.width = `${(s.battery / MAX_RESOURCE) * 100}%`;
+    info.classList.toggle('crit', s.battery < 20);
     clock.textContent = `${s.isDay ? '☀️ Day' : '🌑 Night'} · ${Math.floor(s.elapsed / 60)}:${String(Math.floor(s.elapsed % 60)).padStart(2, '0')}`;
 
-    // danger flash
-    for (const m of METERS) {
-      const b = bars.get(m.key)!;
-      b.fill.style.opacity = s[m.key] < 20 ? '0.5' : '1';
-    }
   };
 
   return { root, update };

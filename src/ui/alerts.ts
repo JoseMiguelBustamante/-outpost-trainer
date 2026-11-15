@@ -22,14 +22,18 @@ export function createAlerts(container: HTMLElement): AlertHandle {
       const urgency = remaining <= storm.leadTimeSeconds * 0.5 ? 'hud-alert urgent' : 'hud-alert';
       const item = document.createElement('div');
       item.className = urgency;
-      item.textContent = `⚠️ INCOMING: ${storm.summary} — impact in ${Math.ceil(remaining)}s (NASA event ${storm.sourceId})`;
+      const headline = document.createElement('strong');
+      headline.textContent = `⚠ STORM INCOMING — ${storm.summary} — impact in ${Math.ceil(remaining)}s`;
+      const source = document.createElement('small');
+      source.textContent = `NASA DONKI · ${storm.sourceId}`;
+      item.append(headline, source);
       root.appendChild(item);
     }
     for (const storm of schedule) {
       if (storm.hit && elapsed <= storm.startAt + storm.durationSeconds) {
         const item = document.createElement('div');
         item.className = 'hud-alert active';
-        item.textContent = `🌪️ ${storm.summary} in progress — power the shield!`;
+        item.textContent = '🌪️ Storm in progress — power the shield!';
         root.appendChild(item);
       }
     }

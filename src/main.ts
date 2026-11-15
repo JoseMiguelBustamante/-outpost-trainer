@@ -93,9 +93,7 @@ function boot(): void {
   scanBtn.style.pointerEvents = 'auto';
   scanBtn.addEventListener('click', () => scanner?.pulse());
   const scanWrap = document.createElement('div');
-  scanWrap.style.position = 'absolute';
-  scanWrap.style.bottom = '24px';
-  scanWrap.style.left = '16px';
+  scanWrap.className = 'hud-actions';
   scanWrap.appendChild(scanBtn);
   hudEl.appendChild(scanWrap);
   window.addEventListener('keydown', (e: KeyboardEvent) => {
