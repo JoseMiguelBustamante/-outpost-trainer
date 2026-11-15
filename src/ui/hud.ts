@@ -3,7 +3,7 @@
 // Presentation lives in style.css (#hud children).
 
 import type { GameState, PowerAllocation } from '../sim';
-import { MAX_RESOURCE } from '../sim';
+import { createInitialState, MAX_RESOURCE } from '../sim';
 
 export interface HudHandle {
   root: HTMLElement;
@@ -16,6 +16,20 @@ const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: s
   { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. If it hits 0, the mission fails.' },
   { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Missions need comms alive to score.' },
 ];
+
+/** Keep the moved slider fixed and share the remaining budget proportionally. */
+export function adjustAllocation(values: PowerAllocation, changedKey: keyof PowerAllocation): PowerAllocation {
+  const result = { ...values, [changedKey]: Math.min(100, Math.max(0, values[changedKey])) };
+  if (result.shield + result.oxygen + result.comms === 100) return result;
+
+  const [first, second] = METERS.map((meter) => meter.key).filter((key) => key !== changedKey);
+  const remainder = 100 - result[changedKey];
+  const otherTotal = values[first] + values[second];
+  result[first] = otherTotal === 0 ? remainder / 2 : remainder * (values[first] / otherTotal);
+  // Use the residual rather than independently scaling both shares, to avoid drift.
+  result[second] = remainder - result[first];
+  return result;
+}
 
 function el(tag: string, className?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -83,19 +97,25 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   // --- power allocation sliders ---
   const allocPanel = el('div', 'hud-alloc');
   const allocTitle = el('div', 'hud-alloc-title');
-  allocTitle.textContent = '⚡ Power';
+  allocTitle.textContent = '⚡ Power (auto-balances to 100%)';
   allocPanel.setAttribute('aria-label', 'Power allocation — shared battery');
   allocPanel.appendChild(allocTitle);
 
   const sliders = new Map<string, HTMLInputElement>();
   const values = new Map<string, HTMLElement>();
+  const initialAllocation = createInitialState().allocation;
 
-  const emit = (): void => {
-    onAllocate({
+  const emit = (changedKey: keyof PowerAllocation): void => {
+    const allocation = adjustAllocation({
       shield: Number(sliders.get('shield')!.value),
       oxygen: Number(sliders.get('oxygen')!.value),
       comms: Number(sliders.get('comms')!.value),
-    });
+    }, changedKey);
+    for (const { key } of METERS) {
+      sliders.get(key)!.value = String(allocation[key]);
+      values.get(key)!.textContent = `${allocation[key]}%`;
+    }
+    onAllocate(allocation);
   };
 
   for (const m of METERS) {
@@ -107,16 +127,14 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     slider.setAttribute('aria-label', `${m.label} power`);
     slider.min = '0';
     slider.max = '100';
-    slider.step = '5';
-    slider.value = '33';
+    // Proportional balancing can produce fractions; do not snap them to steps of 5.
+    slider.step = 'any';
+    slider.value = String(initialAllocation[m.key]);
     slider.dataset.key = m.key;
     const val = el('span', 'hud-alloc-value');
     val.textContent = `${slider.value}%`;
 
-    slider.addEventListener('input', () => {
-      val.textContent = `${slider.value}%`;
-      emit();
-    });
+    slider.addEventListener('input', () => emit(m.key));
 
     sliders.set(m.key, slider);
     values.set(m.key, val);
