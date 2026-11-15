@@ -53,3 +53,4 @@ and every decision splits one shared power budget between shield, oxygen, and co
 
 ## Log
 - L8 (2026-11-14): User (verbatim): "No veo la jugabilidad o como tiene que ser lit no se puede hacer más que darle click y nada más. Astronauta no puede moverse. Estadísticas de power yo las puedo mover no sé si está correcto". Decision (ask_user_choice): "Ambos" — playable astronaut walking to collect deposits + reinforced management loop with feedback. Sliders confirmed mechanically correct (sim renormalizes) but UI dishonest about effective allocation.
+- L9 (2026-11-14): User playtest bugs (verbatim): "Cosas que corregir: no hay Colision con las casas. No puedo avanzar sobre el mapa, no se va la ola lit nada" + screenshots showing fractional slider labels (60.52083333333333%) and persistent "Storm in progress" banner. T8a fixes required: structure collision, touch movement reliability, storm banner duration audit, slider integer rounding (sum stays exactly 100).
