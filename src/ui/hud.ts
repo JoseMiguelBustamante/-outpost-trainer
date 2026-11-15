@@ -11,10 +11,10 @@ export interface HudHandle {
   update: (s: GameState) => void;
 }
 
-const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string }> = [
-  { key: 'shield', icon: '🛡️', label: 'Shield', color: '#4f9df7' },
-  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: '#43d17c' },
-  { key: 'comms', icon: '📡', label: 'Comms', color: '#f7b84f' },
+const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string }> = [
+  { key: 'shield', icon: '🛡️', label: 'Shield', color: '#4f9df7', hint: 'Blocks real solar storms. When the alarm sounds, give it more power.' },
+  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: '#43d17c', hint: 'The crew breathes constantly. If it hits 0, the mission fails.' },
+  { key: 'comms', icon: '📡', label: 'Comms', color: '#f7b84f', hint: 'Contact with Earth. Missions need comms alive to score.' },
 ];
 
 function el(tag: string, className?: string): HTMLElement {
@@ -26,6 +26,16 @@ function el(tag: string, className?: string): HTMLElement {
 export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAllocation) => void): HudHandle {
   const root = el('div', 'hud-root');
 
+  // --- mission banner ---
+  const mission = el('div', 'hud-mission');
+  const missionTag = el('div', 'hud-mission-tag');
+  missionTag.textContent = 'MISSION 01';
+  const missionGoal = el('div', 'hud-mission-goal');
+  missionGoal.textContent = 'Survive the lunar day & night';
+  mission.appendChild(missionTag);
+  mission.appendChild(missionGoal);
+  root.appendChild(mission);
+
   // --- meters panel ---
   const panel = el('div', 'hud-panel');
   const bars = new Map<string, { fill: HTMLElement; value: HTMLElement }>();
@@ -34,6 +44,8 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     const row = el('div', 'hud-meter');
     const label = el('div', 'hud-meter-label');
     label.textContent = `${m.icon} ${m.label}`;
+    label.title = m.hint;
+    label.setAttribute('aria-label', `${m.label}: ${m.hint}`);
     const track = el('div', 'hud-track');
     const fill = el('div', 'hud-fill');
     fill.style.background = m.color;

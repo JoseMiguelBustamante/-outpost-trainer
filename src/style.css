@@ -110,6 +110,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Mission banner --- */
+.hud-mission {
+  background: rgba(10, 12, 20, 0.78);
+  border: 1px solid rgba(127, 216, 255, 0.35);
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: #e8ecf5;
+  width: fit-content;
+}
+
+.hud-mission-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #7fd8ff;
+}
+
+.hud-mission-goal {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
 /* --- Alerts --- */
 .hud-alerts {
   position: absolute;
@@ -168,4 +190,122 @@ body {
 
 .hud-scan-btn:active {
   transform: scale(0.97);
+}
+
+/* --- Full-screen overlays (tutorial, game over) --- */
+.overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.hud-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 6, 12, 0.85);
+  padding: 24px;
+  pointer-events: auto;
+}
+
+.hud-overlay.show {
+  display: flex;
+}
+
+.overlay-card {
+  background: #0a0e18;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  max-width: 340px;
+  width: 100%;
+  padding: 22px;
+  text-align: center;
+  color: #e8ecf5;
+}
+
+.overlay-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.overlay-card h2 {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.overlay-detail {
+  font-size: 14px;
+  color: #b7c1d4;
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+
+.overlay-score {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 10px 0 16px;
+}
+
+.overlay-rules {
+  list-style: none;
+  text-align: left;
+  margin: 14px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.overlay-rules li {
+  margin: 8px 0;
+  padding-left: 18px;
+  position: relative;
+}
+
+.overlay-rules li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: #7fd8ff;
+}
+
+.overlay-rules b {
+  color: #7fd8ff;
+}
+
+.overlay-cta {
+  min-height: 48px;
+  padding: 12px 30px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(180deg, #2c5d8f, #1d3f63);
+  color: #dff1ff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overlay-cta:hover {
+  filter: brightness(1.2);
+}
+
+.overlay-cta:focus-visible {
+  outline: 3px solid #7fd8ff;
+  outline-offset: 2px;
+}
+
+.hud-overlay.victory .overlay-card {
+  border-color: rgba(139, 224, 90, 0.5);
+}
+
+.hud-meter-label[title] {
+  cursor: help;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-alert {
+    animation: none;
+  }
 }

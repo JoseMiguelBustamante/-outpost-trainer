@@ -9,6 +9,8 @@ import { generateDeposits } from './game';
 import { createScanner, type ScannerHandle } from './scene/scanner';
 import { createHud } from './ui/hud';
 import { createAlerts } from './ui/alerts';
+import { createOverlays, createTutorial } from './ui/overlays';
+import { createAudio } from './ui/audio';
 import { fetchDonkiEvents, stormsFromEvents } from './donki/donki';
 import { scheduleStorms, updateStorms, type ScheduledStorm } from './donki/storms';
 
@@ -52,6 +54,7 @@ function boot(): void {
     if (deposit) {
       state = applyHarvest(state, deposit);
       scanner.harvest(deposit);
+      audio.harvest();
     }
   });
 
@@ -62,6 +65,27 @@ function boot(): void {
     state = { ...state, allocation: alloc };
   });
   const alerts = createAlerts(hudEl);
+
+  // --- overlays: tutorial at boot, game over / victory at the end ---
+  const audio = createAudio();
+  let paused = true; // sim waits until the tutorial is dismissed
+
+  const resetMission = (): void => {
+    state = createInitialState(MISSION_LENGTH);
+    alarmed.clear();
+    endedHandled = false;
+    overlays.hideGameOver();
+    paused = false;
+  };
+  const overlays = createOverlays(hudEl, resetMission);
+
+  const tutorial = createTutorial(hudEl, () => {
+    tutorial.remove();
+    audio.unlock();
+    paused = false;
+  });
+  // Any tap also unlocks audio (mobile browsers require a gesture).
+  window.addEventListener('pointerdown', audio.unlock, { once: true });
 
   const scanBtn = document.createElement('button');
   scanBtn.className = 'hud-scan-btn';
@@ -92,19 +116,40 @@ function boot(): void {
   const SIM_DT = 0.1;
   let simAccumulator = 0;
   let last = performance.now();
+  const alarmed = new Set<string>(); // storm source ids that already played the alarm
+  let endedHandled = false; // end-of-mission sting + screen fire only once
 
   const frame = (now: number): void => {
     const delta = Math.min((now - last) / 1000, 0.25);
     last = now;
 
-    simAccumulator += delta;
-    while (simAccumulator >= SIM_DT) {
-      state = updateStorms(schedule, state, SIM_DT);
-      state = tick(state, SIM_DT);
-      simAccumulator -= SIM_DT;
+    if (!paused && !state.gameOver) {
+      simAccumulator += delta;
+      while (simAccumulator >= SIM_DT) {
+        state = updateStorms(schedule, state, SIM_DT);
+        state = tick(state, SIM_DT);
+        simAccumulator -= SIM_DT;
+      }
     }
     hud.update(state);
     alerts.update(schedule, state.elapsed);
+
+    // First-time announcements play the storm alarm once per event.
+    for (const storm of schedule) {
+      if (storm.announced && !storm.hit && !alarmed.has(storm.sourceId)) {
+        alarmed.add(storm.sourceId);
+        audio.stormAlarm();
+      }
+    }
+
+    // End of mission: freeze the sim, show the screen, play the sting.
+    if (state.gameOver && !endedHandled) {
+      endedHandled = true;
+      overlays.showGameOver(state.gameOverReason ?? 'unknown', state);
+      if (state.gameOverReason === 'survived') audio.victory();
+      else audio.defeat();
+    }
+
     scanner?.update(delta);
 
     game.update(delta);
