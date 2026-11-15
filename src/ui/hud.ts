@@ -1,9 +1,9 @@
-// HUD: renders meters and power sliders from the simulation state.
-// Mission Console: compact resource chips and touch-friendly power controls.
+// HUD: renders mission banner, meter chips and battery/clock from the sim state.
+// Power allocation is fixed (33/33/33, log L16): no sliders by product decision.
 // Presentation lives in style.css (#hud children).
 
-import type { GameState, PowerAllocation } from '../sim';
-import { createInitialState, MAX_RESOURCE, batteryCapacity } from '../sim';
+import type { GameState } from '../sim';
+import { MAX_RESOURCE, batteryCapacity } from '../sim';
 
 export interface HudHandle {
   root: HTMLElement;
@@ -23,33 +23,13 @@ const CHIPS = [
     hint: 'Recolecta depósitos para reparar o construir en las zonas cian: Banco de Baterías 20, Reciclador 25, Pilar de Escudo 20. Repara el rover por 10 para duplicar el alcance de escaneo.', critical: 15 },
 ];
 
-/** Keep the moved slider fixed and share the remaining budget proportionally. */
-export function adjustAllocation(values: PowerAllocation, changedKey: keyof PowerAllocation): PowerAllocation {
-  const result = { ...values, [changedKey]: Math.round(Math.min(100, Math.max(0, values[changedKey]))) };
-
-  const [first, second] = METERS.map((meter) => meter.key).filter((key) => key !== changedKey);
-  const remainder = 100 - result[changedKey];
-  const otherTotal = values[first] + values[second];
-  const firstShare = otherTotal === 0 ? remainder / 2 : remainder * (values[first] / otherTotal);
-  const secondShare = remainder - firstShare;
-  result[first] = Math.floor(firstShare);
-  result[second] = Math.floor(secondShare);
-  // Largest remainder wins the leftover unit; ties follow meter order.
-  const leftover = remainder - result[first] - result[second];
-  if (leftover > 0) {
-    const winner = firstShare - result[first] >= secondShare - result[second] ? first : second;
-    result[winner] += leftover;
-  }
-  return result;
-}
-
 function el(tag: string, className?: string): HTMLElement {
   const e = document.createElement(tag);
   if (className) e.className = className;
   return e;
 }
 
-export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAllocation) => void): HudHandle {
+export function createHud(container: HTMLElement): HudHandle {
   const root = el('div', 'hud-root');
 
   // --- mission banner ---
@@ -110,67 +90,8 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   panel.appendChild(info);
   root.appendChild(panel);
 
-  // --- power allocation sliders ---
-  const allocPanel = el('div', 'hud-alloc');
-  const allocTitle = el('div', 'hud-alloc-title');
-  allocTitle.textContent = '⚡ Energía (se ajusta al 100%)';
-  allocPanel.setAttribute('aria-label', 'Reparto de energía — batería compartida');
-  allocPanel.appendChild(allocTitle);
-  const allocSub = el('div', 'hud-alloc-sub');
-  allocSub.textContent = 'Una sola batería, tres sistemas — lo que uno usa, los otros lo pierden.';
-  allocPanel.appendChild(allocSub);
-
-  const sliders = new Map<string, HTMLInputElement>();
-  const values = new Map<string, HTMLElement>();
-  const initialAllocation = createInitialState().allocation;
-
-  const emit = (changedKey: keyof PowerAllocation): void => {
-    const allocation = adjustAllocation({
-      shield: Number(sliders.get('shield')!.value),
-      oxygen: Number(sliders.get('oxygen')!.value),
-      comms: Number(sliders.get('comms')!.value),
-    }, changedKey);
-    for (const { key } of METERS) {
-      sliders.get(key)!.value = String(allocation[key]);
-      values.get(key)!.textContent = `${Math.round(allocation[key])}%`;
-    }
-    onAllocate(allocation);
-  };
-
-  for (const m of METERS) {
-    const row = el('div', 'hud-alloc-row');
-    const label = el('span', 'hud-alloc-label');
-    label.textContent = m.icon;
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.setAttribute('aria-label', `Energía de ${m.label} — ${m.powerHint}`);
-    slider.min = '0';
-    slider.max = '100';
-    // Accept raw input; adjustAllocation apportions it into whole percentages.
-    slider.step = 'any';
-    slider.value = String(initialAllocation[m.key]);
-    slider.dataset.key = m.key;
-    const val = el('span', 'hud-alloc-value');
-    val.textContent = `${Math.round(Number(slider.value))}%`;
-
-    slider.addEventListener('input', () => emit(m.key));
-
-    sliders.set(m.key, slider);
-    values.set(m.key, val);
-    row.appendChild(label);
-    row.appendChild(slider);
-    row.appendChild(val);
-    const hint = el('span', 'hud-alloc-hint');
-    hint.textContent = m.powerHint;
-    hint.title = m.hint;
-    row.appendChild(hint);
-    allocPanel.appendChild(row);
-  }
-  root.appendChild(allocPanel);
-
   // HUD must be interactive even though the container ignores pointer events.
   panel.style.pointerEvents = 'auto';
-  allocPanel.style.pointerEvents = 'auto';
   container.appendChild(root);
 
   const update = (s: GameState): void => {

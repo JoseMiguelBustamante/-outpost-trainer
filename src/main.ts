@@ -171,9 +171,7 @@ function boot(): void {
   // --- HUD ---
   let state: GameState = createInitialState(MISSION_LENGTH);
   let schedule: ScheduledStorm[] = scheduleStorms([], MISSION_LENGTH, SEED);
-  const hud = createHud(hudEl, (alloc) => {
-    state = { ...state, allocation: alloc };
-  });
+  const hud = createHud(hudEl); // power allocation is fixed (33/33/33, log L16)
   const alerts = createAlerts(hudEl);
   const stats = { depositsCollected: 0 };
   let progress = missionProgress(state, stats);
