@@ -23,9 +23,9 @@ export function createAlerts(container: HTMLElement): AlertHandle {
       const item = document.createElement('div');
       item.className = urgency;
       const headline = document.createElement('strong');
-      headline.textContent = `⚠ STORM INCOMING — ${storm.summary} — impact in ${Math.ceil(remaining)}s`;
+      headline.textContent = `⚠ TORMENTA EN CAMINO — ${storm.summary.replace('Geomagnetic storm', 'Tormenta geomagnética')} — impacto en ${Math.ceil(remaining)}s`;
       const source = document.createElement('small');
-      source.textContent = `NASA DONKI · ${storm.sourceId}`;
+      source.textContent = `NASA DONKI · evento real · ${storm.sourceId}`;
       item.append(headline, source);
       root.appendChild(item);
     }
@@ -36,7 +36,7 @@ export function createAlerts(container: HTMLElement): AlertHandle {
         && elapsed < storm.startAt + Math.min(storm.durationSeconds, 90)) {
         const item = document.createElement('div');
         item.className = 'hud-alert active';
-        item.textContent = '🌪️ Storm in progress — power the shield!';
+        item.textContent = '🌪️ ¡Tormenta en curso — da energía al escudo!';
         root.appendChild(item);
       }
     }

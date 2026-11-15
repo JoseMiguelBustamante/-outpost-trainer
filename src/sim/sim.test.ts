@@ -156,7 +156,7 @@ describe('staged missions', () => {
     const state = createInitialState(600);
     const initial = missionProgress(state, { depositsCollected: 2 });
     expect(initial.stageIndex).toBe(0);
-    expect(initial.stages.map((stage) => stage.title)).toEqual(['Establish the outpost']);
+    expect(initial.stages.map((stage) => stage.title)).toEqual(['Establecer el puesto']);
     expect(initial.completed).toEqual([]);
     const first = missionProgress(state, { depositsCollected: 3 });
     expect(first.stageIndex).toBe(1);
@@ -188,7 +188,7 @@ describe('staged missions', () => {
 
 describe('science logbook', () => {
   it('names discoveries deterministically from their deposit index', () => {
-    expect([0, 1, 2].map(discoveryName)).toEqual(['Cyan Knoll', 'Rusty Spire', 'Amber Hollow']);
+    expect([0, 1, 2].map(discoveryName)).toEqual(['Loma Cian', 'Aguja Oxidada', 'Grieta Ámbar']);
     expect(discoveryName(8)).toBe(discoveryName(8));
     expect(new Set(Array.from({ length: 9 }, (_, i) => discoveryName(i))).size).toBe(9);
   });

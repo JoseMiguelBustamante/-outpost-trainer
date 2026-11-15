@@ -12,15 +12,15 @@ export interface HudHandle {
 }
 
 const METERS: Array<{ key: 'shield' | 'oxygen' | 'comms'; icon: string; label: string; color: string; hint: string; powerHint: string }> = [
-  { key: 'shield', icon: '🛡️', label: 'Shield', color: 'var(--shield)', hint: 'Blocks real solar storms. Repairs need power and collected materials.', powerHint: 'stops storm damage' },
-  { key: 'oxygen', icon: '💨', label: 'Oxygen', color: 'var(--oxygen)', hint: 'The crew breathes constantly. Recycling needs power and materials. At 0, the mission fails.', powerHint: 'keeps the crew alive' },
-  { key: 'comms', icon: '📡', label: 'Comms', color: 'var(--comms)', hint: 'Contact with Earth. Repairs need power and collected materials.', powerHint: 'contact with Earth' },
+  { key: 'shield', icon: '🛡️', label: 'Escudo', color: 'var(--shield)', hint: 'Frena tormentas solares reales. Las reparaciones necesitan energía y materiales recolectados.', powerHint: 'frena el daño de las tormentas' },
+  { key: 'oxygen', icon: '💨', label: 'Oxígeno', color: 'var(--oxygen)', hint: 'La tripulación respira todo el tiempo. Reciclar oxígeno requiere energía y materiales. Si llega a 0, la misión termina.', powerHint: 'mantiene con vida a la tripulación' },
+  { key: 'comms', icon: '📡', label: 'Comunicaciones', color: 'var(--comms)', hint: 'Contacto con la Tierra. Las reparaciones necesitan energía y materiales recolectados.', powerHint: 'contacto con la Tierra' },
 ];
 
 const CHIPS = [
   ...METERS.map((meter) => ({ ...meter, critical: 20 })),
-  { key: 'materials' as const, icon: '🧪', label: 'Materials', color: 'var(--battery)',
-    hint: 'Collect deposits to fund repairs or build modules at cyan pads: Battery Bank 20, Recycler 25, Shield Pylon 20. Repair rover for 10 to double SCAN range.', critical: 15 },
+  { key: 'materials' as const, icon: '🧪', label: 'Materiales', color: 'var(--battery)',
+    hint: 'Recolecta depósitos para reparar o construir en las zonas cian: Banco de Baterías 20, Reciclador 25, Pilar de Escudo 20. Repara el rover por 10 para duplicar el alcance de escaneo.', critical: 15 },
 ];
 
 /** Keep the moved slider fixed and share the remaining budget proportionally. */
@@ -55,16 +55,16 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   // --- mission banner ---
   const mission = el('div', 'hud-mission');
   const missionTag = el('div', 'hud-mission-tag');
-  missionTag.textContent = 'MISSION 01';
+  missionTag.textContent = 'MISIÓN 01';
   const missionGoal = el('div', 'hud-mission-goal');
-  missionGoal.textContent = 'Survive the lunar day & night';
+  missionGoal.textContent = 'Sobrevive el día y la noche lunar';
   mission.appendChild(missionTag);
   mission.appendChild(missionGoal);
   root.appendChild(mission);
 
   // --- meters panel ---
   const panel = el('div', 'hud-panel');
-  panel.setAttribute('aria-label', 'Life support meters');
+  panel.setAttribute('aria-label', 'Indicadores de soporte vital');
   const bars = new Map<string, { row: HTMLElement; fill: HTMLElement; value: HTMLElement }>();
 
   for (const m of CHIPS) {
@@ -90,7 +90,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   }
 
   const modules = el('div', 'hud-modules');
-  modules.setAttribute('aria-label', 'Built modules');
+  modules.setAttribute('aria-label', 'Módulos construidos');
   panel.appendChild(modules);
 
   // battery + clock row
@@ -99,7 +99,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   batteryIcon.textContent = '🔋';
   batteryIcon.setAttribute('aria-hidden', 'true');
   const batteryLabel = el('span', 'hud-meter-label');
-  batteryLabel.textContent = 'Battery';
+  batteryLabel.textContent = 'Batería';
   const battery = el('div', 'hud-battery hud-value');
   const clock = el('div', 'hud-clock');
   const batteryTrack = el('div', 'hud-track');
@@ -113,11 +113,11 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
   // --- power allocation sliders ---
   const allocPanel = el('div', 'hud-alloc');
   const allocTitle = el('div', 'hud-alloc-title');
-  allocTitle.textContent = '⚡ Power (auto-balances to 100%)';
-  allocPanel.setAttribute('aria-label', 'Power allocation — shared battery');
+  allocTitle.textContent = '⚡ Energía (se ajusta al 100%)';
+  allocPanel.setAttribute('aria-label', 'Reparto de energía — batería compartida');
   allocPanel.appendChild(allocTitle);
   const allocSub = el('div', 'hud-alloc-sub');
-  allocSub.textContent = 'One battery, three systems — what one takes, the others lose.';
+  allocSub.textContent = 'Una sola batería, tres sistemas — lo que uno usa, los otros lo pierden.';
   allocPanel.appendChild(allocSub);
 
   const sliders = new Map<string, HTMLInputElement>();
@@ -143,7 +143,7 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     label.textContent = m.icon;
     const slider = document.createElement('input');
     slider.type = 'range';
-    slider.setAttribute('aria-label', `${m.label} power — ${m.powerHint}`);
+    slider.setAttribute('aria-label', `Energía de ${m.label} — ${m.powerHint}`);
     slider.min = '0';
     slider.max = '100';
     // Accept raw input; adjustAllocation apportions it into whole percentages.
@@ -183,12 +183,12 @@ export function createHud(container: HTMLElement, onAllocate: (alloc: PowerAlloc
     }
     battery.textContent = `${Math.round(s.battery)}`;
     batteryFill.style.width = `${(s.battery / batteryCapacity(s)) * 100}%`;
-    battery.title = `Battery capacity: ${batteryCapacity(s)}`;
-    const builtNames = [s.built.batteryBank && '🔋 Battery Bank', s.built.recycler && '♻ Recycler', s.built.pylon && '🛡 Shield Pylon'].filter(Boolean);
+    battery.title = `Capacidad de la batería: ${batteryCapacity(s)}`;
+    const builtNames = [s.built.batteryBank && '🔋 Banco de Baterías', s.built.recycler && '♻ Reciclador', s.built.pylon && '🛡 Pilar de Escudo'].filter(Boolean);
     modules.textContent = builtNames.length ? `🏗 ${builtNames.join(' · ')}` : '';
     modules.hidden = builtNames.length === 0;
     info.classList.toggle('crit', s.battery < 20);
-    clock.textContent = `${s.isDay ? '☀️ Day' : '🌑 Night'} · ${Math.floor(s.elapsed / 60)}:${String(Math.floor(s.elapsed % 60)).padStart(2, '0')}`;
+    clock.textContent = `${s.isDay ? '☀️ Día' : '🌑 Noche'} · ${Math.floor(s.elapsed / 60)}:${String(Math.floor(s.elapsed % 60)).padStart(2, '0')}`;
 
   };
 

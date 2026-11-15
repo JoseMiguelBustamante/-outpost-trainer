@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="The NASA DONKI space weather data and engineering tradeoffs behind Lunar Outpost Trainer." />
-    <title>The science behind it — Lunar Outpost Trainer</title>
+    <meta name="description" content="Los datos de clima espacial de NASA DONKI y las decisiones de ingeniería detrás de Lunar Outpost Trainer." />
+    <title>La ciencia detrás — Lunar Outpost Trainer</title>
     <style>
       :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #e8ecf5; background: #050812; line-height: 1.65; }
       * { box-sizing: border-box; }
@@ -31,60 +31,60 @@
   </head>
   <body>
     <header>
-      <p class="eyebrow">Lunar Outpost Trainer · Mission science</p>
-      <h1>The science behind it</h1>
-      <p>Real space weather. One shared battery. A Moon mission you can replay in your browser — no download or account needed.</p>
+      <p class="eyebrow">Lunar Outpost Trainer · La ciencia de la misión</p>
+      <h1>La ciencia detrás</h1>
+      <p>Clima espacial real. Una batería compartida. Una misión lunar que puedes volver a jugar en tu navegador, sin descargas ni cuentas.</p>
     </header>
     <main>
       <section aria-labelledby="storms">
-        <h2 id="storms">Where the storms come from</h2>
-        <p>Our storm records come from <a href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/">NASA DONKI</a>: the Space Weather Database Of Notifications, Knowledge, Information.</p>
-        <p><strong>CME — Coronal Mass Ejection:</strong> the Sun throws a huge cloud of hot, electrically charged gas into space. DONKI records its speed in kilometers per second (km/s).</p>
-        <p><strong>GST — Geomagnetic Storm:</strong> solar activity can shake Earth's magnetic field. The Kp index measures that disturbance on a scale from 0 to 9; bigger numbers mean stronger disturbances at Earth, not a direct measurement of danger on the Moon.</p>
+        <h2 id="storms">De dónde vienen las tormentas</h2>
+        <p>Nuestros registros de tormentas vienen de <a href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/">NASA DONKI</a>: una base de datos con avisos, conocimientos e información sobre el clima espacial.</p>
+        <p><strong>CME — Eyección de masa coronal:</strong> el Sol lanza al espacio una enorme nube de gas caliente con carga eléctrica. DONKI registra su velocidad en kilómetros por segundo (km/s).</p>
+        <p><strong>GST — Tormenta geomagnética:</strong> la actividad solar puede alterar el campo magnético de la Tierra. El índice Kp mide esa alteración en una escala de 0 a 9. Los números más altos indican alteraciones más fuertes en la Tierra. No miden directamente el peligro en la Luna.</p>
       </section>
       <section aria-labelledby="mapping">
-        <h2 id="mapping">How a real storm becomes a game storm</h2>
-        <div class="table-wrap" tabindex="0" role="region" aria-label="Storm mapping table">
+        <h2 id="mapping">Cómo una tormenta real se convierte en un reto del juego</h2>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla de conversión de tormentas">
           <table>
-            <caption>NASA measurements → playable challenges</caption>
-            <thead><tr><th scope="col">DONKI field</th><th scope="col">In the game</th></tr></thead>
+            <caption>Mediciones de la NASA → retos para jugar</caption>
+            <thead><tr><th scope="col">Campo de DONKI</th><th scope="col">En el juego</th></tr></thead>
             <tbody>
-              <tr><th scope="row"><code>startTime</code></th><td>Identifies the dated event behind the storm schedule. Real calendar times are not replayed: a seeded shuffle schedules up to four events after a safe opening period.</td></tr>
-              <tr><th scope="row">CME <code>speed</code></th><td>Controls shield damage per second: faster means stronger. Speeds from 400–2,000 km/s map to 0.35–3.5 damage/s, clamped at those limits.</td></tr>
-              <tr><th scope="row">GST <code>kpIndex</code></th><td>Controls severity using the event's peak Kp. Kp 5–9 maps to 0.35–3.5 damage/s; values below 5 are skipped.</td></tr>
+              <tr><th scope="row"><code>startTime</code></th><td>Identifica la fecha del evento real que usamos para la tormenta. No repetimos sus horarios reales. Un orden mezclado con una semilla programa hasta cuatro eventos después de un inicio seguro.</td></tr>
+              <tr><th scope="row">CME <code>speed</code></th><td>Controla el daño al escudo por segundo: a mayor velocidad, más fuerza. Las velocidades de 400–2,000 km/s se convierten en 0.35–3.5 puntos de daño por segundo, sin superar esos límites.</td></tr>
+              <tr><th scope="row">GST <code>kpIndex</code></th><td>Controla la fuerza con el Kp máximo del evento. Un Kp de 5–9 se convierte en 0.35–3.5 puntos de daño por segundo. Los valores menores que 5 no se usan.</td></tr>
             </tbody>
           </table>
         </div>
-        <p>The in-game storm banner shows the real NASA event ID, so you can connect the challenge to its source. Stronger mapped storms are shorter; mission timing and shield damage are game rules, not a space-weather forecast.</p>
-        <p>Try again with a different power plan: the seeded storm order can change between missions, while every event still has a real source.</p>
+        <p>El aviso de tormenta muestra el identificador del evento real de la NASA. Así puedes relacionar el reto con su fuente. Las tormentas más fuertes duran menos. Los tiempos de la misión y el daño al escudo son reglas del juego, no un pronóstico del clima espacial.</p>
+        <p>Intenta otro reparto de energía: el orden de las tormentas, mezclado con una semilla, puede cambiar entre misiones. Cada evento siempre tiene una fuente real.</p>
       </section>
       <section aria-labelledby="fallback">
-        <h2 id="fallback">The fallback dataset</h2>
-        <p>These real event records are embedded in the game build, so the game always has real data even if the API is unreachable. Their shield damage and duration are hand-tuned for play rather than recalculated by the live-data mapping.</p>
-        <div class="table-wrap" tabindex="0" role="region" aria-label="Fallback storm table">
+        <h2 id="fallback">Los datos de respaldo</h2>
+        <p>Estos registros de eventos reales vienen incluidos en el juego. Así siempre hay datos reales, aunque no se pueda acceder a la API. Su daño al escudo y su duración se ajustaron a mano para jugar. No se calculan con la conversión de los datos en vivo.</p>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla de tormentas de respaldo">
           <table>
-            <caption>All three embedded events (dates and times in UTC)</caption>
-            <thead><tr><th scope="col">Date / NASA event ID</th><th scope="col">Type</th><th scope="col">Key number</th></tr></thead>
+            <caption>Los tres eventos incluidos (fechas y horas en UTC)</caption>
+            <thead><tr><th scope="col">Fecha / identificador del evento de la NASA</th><th scope="col">Tipo</th><th scope="col">Dato clave</th></tr></thead>
             <tbody>
               <tr><th scope="row">2026-10-25<br /><code>2026-10-25T03:12:00-CME-001</code></th><td>CME</td><td>336 km/s</td></tr>
-              <tr><th scope="row">2024-05-10<br /><code>2024-05-10T15:00:00-GST-001</code></th><td>GST (Gannon storm)</td><td>Peak Kp 9.0</td></tr>
-              <tr><th scope="row">2024-05-11<br /><code>2024-05-11T00:00:00-GST-001</code></th><td>GST</td><td>Peak Kp 7.67 (shown as 7.7 in game)</td></tr>
+              <tr><th scope="row">2024-05-10<br /><code>2024-05-10T15:00:00-GST-001</code></th><td>GST (tormenta Gannon)</td><td>Kp máximo 9.0</td></tr>
+              <tr><th scope="row">2024-05-11<br /><code>2024-05-11T00:00:00-GST-001</code></th><td>GST</td><td>Kp máximo 7.67 (se muestra como 7.7 en el juego)</td></tr>
             </tbody>
           </table>
         </div>
       </section>
       <section aria-labelledby="moon">
-        <h2 id="moon">Why the lunar south pole</h2>
-        <p>NASA's Artemis missions connect our outpost to real plans for exploring the lunar south pole. The game compresses roughly 14 Earth days of lunar night per cycle into a short challenge; actual polar sunlight depends on terrain and season. The Moon has no substantial atmosphere, so our game sends CMEs straight against a fictional shield. In reality, charged particles and radiation are hazards, but a GST describes Earth's magnetic response — it is only a difficulty proxy here.</p>
+        <h2 id="moon">Por qué el polo sur lunar</h2>
+        <p>Las misiones Artemis de la NASA conectan nuestro puesto con los planes reales para explorar el polo sur lunar. El juego comprime unos 14 días terrestres de noche lunar por ciclo en un reto corto. La luz solar real en los polos depende del terreno y de la época del año. La Luna casi no tiene atmósfera. Por eso, en el juego enviamos las CME directamente contra un escudo imaginario. En realidad, las partículas con carga eléctrica y la radiación son peligrosas. Pero una GST describe la respuesta magnética de la Tierra: aquí solo sirve para ajustar la dificultad.</p>
       </section>
       <section aria-labelledby="power">
-        <h2 id="power">One battery, three systems</h2>
-        <p>Your shield, oxygen recycler, and communications share one power budget. Giving more power to one leaves less for the others, and solar power cannot refill the battery during the game's night. Engineers call this a tradeoff: keep the crew breathing, protect the base, and choose when to scan for resources. There is no free upgrade — try another balance on your next mission.</p>
+        <h2 id="power">Una batería, tres sistemas</h2>
+        <p>El escudo, el reciclador de oxígeno y las comunicaciones comparten una sola reserva de energía. Darle más a uno deja menos para los otros. Además, los paneles solares no recargan la batería durante la noche del juego. En ingeniería, esto significa elegir qué cuidar con recursos limitados: mantener a la tripulación respirando, proteger la base y decidir cuándo buscar recursos. Ninguna mejora es gratis. Prueba otro equilibrio en tu próxima misión.</p>
       </section>
     </main>
     <footer>
-      <p>Space weather data: NASA DONKI (CCMC)</p>
-      <a href="/">← Back to the outpost</a>
+      <p>Datos de clima espacial: NASA DONKI (CCMC)</p>
+      <a href="/">← Volver al puesto</a>
     </footer>
   </body>
 </html>

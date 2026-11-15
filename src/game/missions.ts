@@ -15,11 +15,11 @@ export type MissionStage = {
 };
 
 const STAGES: readonly MissionStage[] = [
-  { id: 'establish', title: 'Establish the outpost', detail: 'collect 3 deposits',
+  { id: 'establish', title: 'Establecer el puesto', detail: 'recolecta 3 depósitos',
     done: (_state, stats) => stats.depositsCollected >= 3, rewardMaterials: 15 },
-  { id: 'sustain', title: 'Sustain the crew', detail: 'survive 1 storm with oxygen ≥60',
+  { id: 'sustain', title: 'Sostener a la tripulación', detail: 'sobrevive 1 tormenta con oxígeno ≥60',
     done: (state) => state.stormsSurvived >= 1 && state.oxygen >= 60, rewardMaterials: 15 },
-  { id: 'emergency', title: 'Survive the emergency', detail: 'survive 3 storms or the full cycle',
+  { id: 'emergency', title: 'Sobrevivir la emergencia', detail: 'sobrevive 3 tormentas o el ciclo completo',
     done: (state) => state.stormsSurvived >= 3 || state.gameOverReason === 'survived', rewardMaterials: 20 },
 ];
 

@@ -137,10 +137,10 @@ describe('playtest regressions', () => {
       alerts.update([{ ...storm, hit }], elapsed, remaining);
       return container.children[0].children;
     };
-    expect(render(130, 10).map((item) => item.textContent)).toEqual(['🌪️ Storm in progress — power the shield!']);
+    expect(render(130, 10).map((item) => item.textContent)).toEqual(['🌪️ ¡Tormenta en curso — da energía al escudo!']);
     expect(render(131, 0)).toHaveLength(0);
     expect(render(211, 209)).toHaveLength(0);
-    expect(render(110, 0, false)[0].children[0].textContent).toContain('impact in 10s');
+    expect(render(110, 0, false)[0].children[0].textContent).toContain('impacto en 10s');
   });
 });
 
@@ -163,11 +163,11 @@ describe('HUD materials chip', () => {
   it('renders an accessible materials value and bar with a strict below-15 warning', () => {
     const { hud, root, sliders } = mountHud();
     const panel = root.children.find((child) => child.className === 'hud-panel')!;
-    const chip = panel.children.find((row) => row.children[1]?.textContent === 'Materials');
+    const chip = panel.children.find((row) => row.children[1]?.textContent === 'Materiales');
     expect(chip).toBeDefined();
     expect(chip!.children[0].textContent).toBe('🧪');
     expect(chip!.children[0].attributes.get('aria-hidden')).toBe('true');
-    expect(chip!.children[1].attributes.get('aria-label')).toContain('Materials:');
+    expect(chip!.children[1].attributes.get('aria-label')).toContain('Materiales:');
     for (const value of [40, 15, 14, 0, 100]) {
       hud.update({ ...createInitialState(), materials: value });
       expect(chip!.children[2].textContent).toBe(String(value));
@@ -186,14 +186,14 @@ describe('HUD power controls', () => {
     expect(labels.map((label) => label.textContent)).toEqual(keys.map((key) => `${Math.round(initial[key])}%`));
     expect(sliders.map((slider) => slider.attributes.get('aria-label')))
       .toEqual([
-        'Shield power — stops storm damage',
-        'Oxygen power — keeps the crew alive',
-        'Comms power — contact with Earth',
+        'Energía de Escudo — frena el daño de las tormentas',
+        'Energía de Oxígeno — mantiene con vida a la tripulación',
+        'Energía de Comunicaciones — contacto con la Tierra',
       ]);
     for (const slider of sliders) {
       expect([slider.type, slider.min, slider.max, slider.step]).toEqual(['range', '0', '100', 'any']);
     }
-    expect(title.textContent).toBe('⚡ Power (auto-balances to 100%)');
+    expect(title.textContent).toBe('⚡ Energía (se ajusta al 100%)');
     expect(onAllocate).not.toHaveBeenCalled();
   });
 
