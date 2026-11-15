@@ -34,6 +34,7 @@
       <p class="eyebrow">Lunar Outpost Trainer · La ciencia de la misión</p>
       <h1>La ciencia detrás</h1>
       <p>Clima espacial real. Una batería compartida. Una misión lunar que puedes volver a jugar en tu navegador, sin descargas ni cuentas.</p>
+      <p>En este juego elegimos 3 recursos centrales (oxígeno, escudo, energía) como sugiere el desafío; la producción de alimentos queda fuera del alcance de esta versión.</p>
     </header>
     <main>
       <section aria-labelledby="storms">
@@ -56,10 +57,24 @@
           </table>
         </div>
         <p>El aviso de tormenta muestra el identificador del evento real de la NASA. Así puedes relacionar el reto con su fuente. Las tormentas más fuertes duran menos. Los tiempos de la misión y el daño al escudo son reglas del juego, no un pronóstico del clima espacial.</p>
-        <p>Intenta otro reparto de energía: el orden de las tormentas, mezclado con una semilla, puede cambiar entre misiones. Cada evento siempre tiene una fuente real.</p>
+        <p>La energía de la base se reparte por igual entre escudo, oxígeno y comunicaciones: cada partida muestra un orden de tormentas distinto — mezclado con una semilla — y cada evento siempre tiene una fuente real.</p>
+      </section>
+      <section aria-labelledby="numbers">
+        <h2 id="numbers">¿De dónde salen los números?</h2>
+        <p>Las velocidades exactas de reparación y regeneración se ajustan para que puedas aprender y jugar una misión corta: no son velocidades reales de una base lunar.</p>
+        <p>Como referencia oficial de soporte vital de una tripulación, NASA BVAD — Baseline Values and Assumptions Document reúne valores de aproximadamente 0.84 kg de oxígeno, 3.5 kg de agua y 1.83 kg de alimentos por persona y día. Puedes consultar el <a href="https://ntrs.nasa.gov/citations/20210024855">Documento de valores y supuestos base (BVAD) — NASA NTRS</a>.</p>
+        <p>Para que sea fácil de entender, el juego simplifica esos suministros en una sola unidad de «materiales». No convierte los kilogramos del BVAD en puntos ni calcula el consumo real de una tripulación.</p>
+      </section>
+      <section aria-labelledby="radiation">
+        <h2 id="radiation">Radiación: lo que mide la NASA de verdad</h2>
+        <p>Las tormentas solares pueden aumentar el riesgo de radiación para astronautas. DONKI informa del clima espacial, incluidas las eyecciones de masa coronal (CME) y las partículas energéticas solares; nuestro juego usa eventos CME y GST, no mediciones de dosis.</p>
+        <p>Para medir la dosis de radiación que llega a una superficie planetaria, la NASA tiene instrumentos como RAD (Radiation Assessment Detector), a bordo de Curiosity en Marte desde 2012. Puedes explorar sus <a href="https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/">datos de radiación de Curiosity RAD en NASA PDS</a>. Son mediciones de Marte, no de la Luna.</p>
+        <p>El juego no simula cifras de dosis ni recibe datos de dosis de la superficie lunar; los eventos de tormenta y sus velocidades o valores de <code>kpIndex</code> sí son reales, pero el daño al escudo es una regla para jugar.</p>
       </section>
       <section aria-labelledby="fallback">
         <h2 id="fallback">Los datos de respaldo</h2>
+        <p><strong>⚠ Datos archivados — este conjunto fijo viene incluido en el juego para funcionar sin conexión; no es información en vivo.</strong></p>
+        <p>El juego intenta primero consultar la API de DONKI en vivo y solo recurre a este archivo si no consigue eventos utilizables. Para jugar sin conexión, necesitas haber cargado antes la aplicación; incluir estos datos no descarga el juego por ti.</p>
         <p>Estos registros de eventos reales vienen incluidos en el juego. Así siempre hay datos reales, aunque no se pueda acceder a la API. Su daño al escudo y su duración se ajustaron a mano para jugar. No se calculan con la conversión de los datos en vivo.</p>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Tabla de tormentas de respaldo">
           <table>
@@ -76,6 +91,7 @@
       <section aria-labelledby="moon">
         <h2 id="moon">Por qué el polo sur lunar</h2>
         <p>Las misiones Artemis de la NASA conectan nuestro puesto con los planes reales para explorar el polo sur lunar. El juego comprime unos 14 días terrestres de noche lunar por ciclo en un reto corto. La luz solar real en los polos depende del terreno y de la época del año. La Luna casi no tiene atmósfera. Por eso, en el juego enviamos las CME directamente contra un escudo imaginario. En realidad, las partículas con carga eléctrica y la radiación son peligrosas. Pero una GST describe la respuesta magnética de la Tierra: aquí solo sirve para ajustar la dificultad.</p>
+        <p>Las capas de iluminación y visibilidad de la Tierra de <a href="https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=moon">NASA Moon Trek</a> ayudan a entender por qué interesa el polo sur: buscar luz para los paneles solares y una línea de visión hacia la Tierra para comunicarse. Son contexto de la NASA para nuestra elección del lugar; el juego no carga esas capas ni calcula su terreno real.</p>
       </section>
       <section aria-labelledby="power">
         <h2 id="power">Una batería, tres sistemas</h2>
@@ -83,6 +99,13 @@
       </section>
     </main>
     <footer>
+      <h2>Fuentes NASA</h2>
+      <ul>
+        <li><a href="https://ntrs.nasa.gov/citations/20210024855">Documento de valores y supuestos base (BVAD) — NASA NTRS</a></li>
+        <li><a href="https://pds-ppi.igpp.ucla.edu/data/MSL-M-RAD-3-RDR-V1.0/">Curiosity RAD — datos de radiación en NASA PDS</a></li>
+        <li><a href="https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=moon">NASA Moon Trek — capas lunares</a></li>
+        <li><a href="https://kauai.ccmc.gsfc.nasa.gov/DONKI/">NASA DONKI (CCMC) — datos de clima espacial</a></li>
+      </ul>
       <p>Datos de clima espacial: NASA DONKI (CCMC)</p>
       <a href="/">← Volver al puesto</a>
     </footer>
