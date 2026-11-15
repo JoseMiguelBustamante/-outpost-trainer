@@ -1,0 +1,10 @@
+{
+  "title": "Outpost HUD — T6 UI overhaul",
+  "brief": "Redesign the game HUD for the Junior Astronaut Mission Trainer (kids 7-12, judges; phone-first, desktop too). Covers the locked T6 scope: mission banner, compact life-support meters, shared power-budget panel, SCAN action, real-DONKI storm feedback, tutorial overlay and game-over screen. Water/food/crop systems from the user's reference image are intentionally excluded (rejected at design lock).",
+  "feature": "odd/tasks/outpost-trainer.md",
+  "artboards": [
+    { "file": "01-mission-console.html", "title": "Mission Console", "tradeoff": "Always-visible mission banner, chips and power drawer give the strongest guidance for young players; costs the most screen chrome over the 3D scene", "width": 420, "height": 900 },
+    { "file": "02-kid-arcade.html", "title": "Kid Arcade", "tradeoff": "Fat gauges, round SCAN button and storm splash maximize kid appeal and legibility from a couch; lowest info density and least precise values", "width": 420, "height": 900 },
+    { "file": "03-focus-telemetry.html", "title": "Focus Telemetry", "tradeoff": "One-line status strip keeps the 3D scene clean and expands only under threat; weakest constant hand-holding — relies on kids noticing the strip", "width": 420, "height": 900 }
+  ]
+}
