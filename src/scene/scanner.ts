@@ -14,7 +14,9 @@ const COLOR_BY_TYPE: Record<Deposit['type'], string> = {
 export interface ScannerHandle {
   group: THREE.Group;
   /** Animate pulse ring + marker bobbing. dt seconds. */
-  update: (dt: number) => void;
+  update: (dt: number, camera?: THREE.PerspectiveCamera) => void;
+  /** Remove the screen-space layer when replacing the scanner on retry. */
+  removeLabels: () => void;
   /** Trigger a scan ping from the outpost. */
   pulse: () => void;
   /** Scale both the visual sweep and horizontal reveal reach (default 1). */
@@ -35,17 +37,27 @@ interface Marker {
   mesh: THREE.Group;
   pickMesh: THREE.Mesh;
   collectTime: number;
+  label?: HTMLElement;
 }
 
 export function createScanner(
   deposits: Deposit[],
   outpostPosition: THREE.Vector3,
+  labelContainer?: HTMLElement,
 ): ScannerHandle {
   const group = new THREE.Group();
   group.name = 'scanner';
 
   const markers: Marker[] = [];
   const pickables: THREE.Mesh[] = [];
+  const layer = labelContainer ? document.createElement('div') : undefined;
+  if (layer) {
+    layer.className = 'deposit-label-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    labelContainer!.appendChild(layer);
+  }
+  // Reuse a single vector and each label node throughout the scanner's lifetime.
+  const projected = new THREE.Vector3();
 
   for (const d of deposits) {
     const g = new THREE.Group();
@@ -83,7 +95,14 @@ export function createScanner(
     g.visible = false; // hidden until scanned
     group.add(g);
     pickables.push(pickMesh);
-    markers.push({ deposit: d, mesh: g, pickMesh, collectTime: -1 });
+    const label = layer ? document.createElement('span') : undefined;
+    if (label) {
+      label.className = 'deposit-label';
+      label.textContent = 'Depósito';
+      label.hidden = true;
+      layer!.appendChild(label);
+    }
+    markers.push({ deposit: d, mesh: g, pickMesh, collectTime: -1, label });
   }
 
   // Scan pulse: expanding ground ring.
@@ -101,7 +120,10 @@ export function createScanner(
   let pulseT = -1; // <0 idle
   let rangeMultiplier = 1;
 
-  const update = (dt: number): void => {
+  const update = (dt: number, camera?: THREE.PerspectiveCamera): void => {
+    if (camera) camera.updateMatrixWorld();
+    const width = layer?.clientWidth ?? 0;
+    const height = layer?.clientHeight ?? 0;
     if (pulseT >= 0) {
       pulseT += dt;
       const t = pulseT / 3.5; // 3.5s sweep over ~55 units
@@ -113,6 +135,21 @@ export function createScanner(
     // Markers bob gently so kids notice them.
     const time = performance.now() / 1000;
     for (const m of markers) {
+      if (m.label) {
+        let visible = Boolean(camera && m.mesh.visible && !m.deposit.harvested && m.collectTime < 0);
+        if (visible) {
+          m.mesh.getWorldPosition(projected);
+          projected.y += 4.5;
+          projected.project(camera!);
+          const x = (projected.x + 1) * width / 2;
+          const y = (1 - projected.y) * height / 2;
+          // Reserve the top console and bottom controls, including the joystick.
+          visible = projected.z >= -1 && projected.z <= 1
+            && x >= 34 && x <= width - 34 && y >= 300 && y < height - 220;
+          if (visible) m.label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+        }
+        m.label.hidden = !visible;
+      }
       if (!m.mesh.visible) continue;
       if (m.collectTime >= 0) {
         m.collectTime += dt;
@@ -137,6 +174,7 @@ export function createScanner(
   return {
     group,
     update,
+    removeLabels: () => layer?.remove(),
     setRangeMultiplier: (multiplier) => {
       rangeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
     },
@@ -166,6 +204,8 @@ export function createScanner(
       const marker = markers.find((m) => m.deposit.id === deposit.id);
       if (!marker || !marker.mesh.visible || marker.deposit.harvested) return false;
       marker.deposit.harvested = true;
+      marker.label?.remove();
+      marker.label = undefined;
       marker.collectTime = 0;
       return true;
     },

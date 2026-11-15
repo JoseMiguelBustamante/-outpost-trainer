@@ -89,7 +89,8 @@ describe('HUD materials chip', () => {
   it('renders an accessible materials value and bar with a strict below-15 warning', () => {
     const { hud, root } = mountHud();
     const panel = root.children.find((child) => child.className === 'hud-panel')!;
-    const chip = panel.children.find((row) => row.children[1]?.textContent === 'Materiales');
+    const row = panel.children.find((child) => child.className === 'hud-chip-row')!;
+    const chip = row.children.find((chip) => chip.children[1]?.textContent === 'Materiales');
     expect(chip).toBeDefined();
     expect(chip!.children[0].textContent).toBe('🧪');
     expect(chip!.children[0].attributes.get('aria-hidden')).toBe('true');

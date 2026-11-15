@@ -84,13 +84,94 @@ export function createLogbook(container: HTMLElement, onToggle: (open: boolean) 
   close.textContent = 'Cerrar';
   close.addEventListener('click', () => dialog.close());
   // Native dialog provides focus trapping, Escape dismissal and focus restoration.
-  dialog.addEventListener('close', () => onToggle(false));
+  dialog.addEventListener('close', () => {
+    pause.hidden = true;
+    onToggle(false);
+  });
   const list = document.createElement('ol');
   list.className = 'logbook-entries';
-  const empty = document.createElement('p');
-  empty.textContent = 'Escanea y recolecta depósitos para nombrar tu primer descubrimiento.';
+  const header = document.createElement('header');
+  header.className = 'logbook-header';
+  const pause = document.createElement('span');
+  pause.className = 'logbook-pause';
+  pause.textContent = '⏸ MISIÓN EN PAUSA';
+  pause.hidden = true;
+  header.append(title, pause);
+  const empty = document.createElement('div');
+  empty.className = 'logbook-empty';
+  const emptyTitle = document.createElement('h3');
+  emptyTitle.textContent = 'Tu primer descubrimiento';
+  const subtitle = document.createElement('p');
+  subtitle.textContent = 'Escanea un depósito para crear su ficha.';
+  empty.append(emptyTitle, subtitle);
+  for (const text of ['🔎 Qué encontraste', '⚙️ Para qué sirve', '📍 Fuente']) {
+    const field = document.createElement('div');
+    field.className = 'logbook-empty-field';
+    field.textContent = text;
+    empty.appendChild(field);
+  }
+  const tabs = document.createElement('div');
+  tabs.className = 'logbook-tabs';
+  tabs.setAttribute('role', 'tablist');
+  tabs.setAttribute('aria-label', 'Secciones de la bitácora');
+  const panels = ['hallazgos', 'ciencia', 'logros'].map((id) => {
+    const panel = document.createElement('section');
+    panel.id = `logbook-${id}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `tab-${id}`);
+    panel.tabIndex = 0;
+    return panel;
+  });
+  const buttons = ['🔎 Hallazgos', '⚗️ Ciencia', '🏆 Logros'].map((label, index) => {
+    const button = document.createElement('button');
+    button.textContent = label;
+    button.id = panels[index].getAttribute('aria-labelledby')!;
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-controls', panels[index].id);
+    button.addEventListener('click', () => selectTab(index));
+    button.addEventListener('keydown', (event) => {
+      const next = event.key === 'ArrowRight' ? (index + 1) % 3
+        : event.key === 'ArrowLeft' ? (index + 2) % 3
+        : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : null;
+      if (next === null) return;
+      event.preventDefault();
+      selectTab(next);
+      buttons[next].focus();
+    });
+    tabs.appendChild(button);
+    return button;
+  });
+  function selectTab(index: number) {
+    buttons.forEach((button, i) => {
+      button.setAttribute('aria-selected', String(i === index));
+      button.tabIndex = i === index ? 0 : -1;
+      panels[i].hidden = i !== index;
+    });
+  }
+  selectTab(0);
+  panels[0].append(empty, list);
+  const science = document.createElement('dl');
+  science.className = 'logbook-science';
+  for (const [resource, meaning] of [
+    ['🛡️ Escudo', 'Frena tormentas solares.'], ['💨 Oxígeno', 'Mantiene con vida a tu tripulación.'],
+    ['📡 Señal', 'Mantiene el contacto con la Tierra.'], ['🔋 Batería', 'Alimenta los sistemas; el Sol la recarga de día.'],
+    ['🧪 Materiales', 'Sirven para reparar y construir. Recolecta depósitos para conseguirlos.'],
+  ]) {
+    const term = document.createElement('dt');
+    term.textContent = resource;
+    const description = document.createElement('dd');
+    description.textContent = meaning;
+    science.append(term, description);
+  }
+  const link = document.createElement('a');
+  link.href = './science.html';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Ver la ciencia completa →';
+  panels[1].append(science, link);
   let badges = renderBadgeChips([]);
-  dialog.append(title, badges, empty, list, close);
+  panels[2].appendChild(badges);
+  dialog.append(header, tabs, ...panels, close);
   container.appendChild(dialog);
   return {
     toggle() {
@@ -98,11 +179,23 @@ export function createLogbook(container: HTMLElement, onToggle: (open: boolean) 
       else {
         dialog.showModal();
         onToggle(true);
-        close.focus();
+        pause.hidden = false;
+        buttons.find((button) => button.getAttribute('aria-selected') === 'true')!.focus();
       }
     },
-    update(entries: readonly LogEntry[], earnedBadges: readonly BadgeId[] = []) {
+    update(entries: readonly LogEntry[], earnedBadges: readonly BadgeId[] = [], stats?: BadgeStats) {
       const nextBadges = renderBadgeChips(earnedBadges);
+      const counts: Record<BadgeId, [number, number]> = {
+        firstStorm: [Math.min(stats?.stormsSurvived ?? 0, 1), 1],
+        baseBuilder: [stats ? Object.values(stats.built).filter(Boolean).length : 0, 3],
+        pathfinder: [Math.min(stats?.depositsCollected ?? 0, 6), 6],
+        cycleSurvivor: [stats?.gameOverReason === 'survived' ? 1 : 0, 1],
+      };
+      BADGES.forEach((badge, index) => {
+        if (earnedBadges.includes(badge.id)) return;
+        const [count, total] = counts[badge.id];
+        nextBadges.children[index].textContent += ` ${count}/${total}`;
+      });
       badges.replaceWith(nextBadges);
       badges = nextBadges;
       list.replaceChildren();

@@ -43,7 +43,7 @@ function boot(): void {
   });
   let scanner: ScannerHandle | null = null;
   const outpostPos = game.outpost.group.position.clone();
-  scanner = createScanner(deposits, outpostPos);
+  scanner = createScanner(deposits, outpostPos, hudEl);
   game.scene.add(scanner.group);
 
   function terrainHeightAt(x: number, z: number): number {
@@ -172,7 +172,7 @@ function boot(): void {
   let state: GameState = createInitialState(MISSION_LENGTH);
   let schedule: ScheduledStorm[] = scheduleStorms([], MISSION_LENGTH, SEED);
   const hud = createHud(hudEl); // power allocation is fixed (33/33/33, log L16)
-  const alerts = createAlerts(hudEl);
+  const alerts = createAlerts(hud.warningStrip);
   const stats = { depositsCollected: 0 };
   let progress = missionProgress(state, stats);
   let entries: LogEntry[] = [];
@@ -188,7 +188,7 @@ function boot(): void {
   });
   function recordLog(text: string): void {
     entries = appendLogEntry(entries, state.elapsed, text);
-    logbook.update(entries, earnedBadges);
+    logbook.update(entries, earnedBadges, { ...state, ...stats, earnedBadges });
   }
   function updateBadges(): void {
     const newlyEarned = awardBadges({ ...state, ...stats, earnedBadges });
@@ -218,7 +218,7 @@ function boot(): void {
     entries = [];
     earnedBadges = [];
     player.setAccent(suitAccent(earnedBadges));
-    logbook.update(entries, earnedBadges);
+    logbook.update(entries, earnedBadges, { ...state, ...stats, earnedBadges });
     activeStorm = null;
     simAccumulator = 0;
     slots.forEach((slot) => slot.reset());
@@ -230,6 +230,7 @@ function boot(): void {
     resetStick();
     player.setPosition(outpostPos.x + 0.85, outpostPos.z + 2.8);
     // Reuse the scanner constructor so retry restores both deposit state and visuals.
+    scanner?.removeLabels();
     scanner?.group.removeFromParent();
     scanner?.group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
@@ -237,7 +238,7 @@ function boot(): void {
       for (const material of Array.isArray(object.material) ? object.material : [object.material]) material.dispose();
     });
     deposits = generateDeposits(game.terrainConfig, SEED, 9, terrainHeightAt);
-    scanner = createScanner(deposits, outpostPos);
+    scanner = createScanner(deposits, outpostPos, hudEl);
     game.scene.add(scanner.group);
     scanner.setRangeMultiplier(1);
     schedule = scheduleStorms(schedule, MISSION_LENGTH, SEED);
@@ -271,10 +272,13 @@ function boot(): void {
   const logBtn = document.createElement('button');
   logBtn.className = 'hud-scan-btn hud-log-btn';
   logBtn.textContent = '📖 BITÁCORA';
-  logBtn.title = 'Bitácora científica: insignias, descubrimientos, tormentas de la NASA sobrevividas y etapas completas. Presiona Escape para cerrar.';
+  logBtn.title = 'Abre Hallazgos, Ciencia y Logros. La misión se pausa mientras lees. Presiona Escape para cerrar.';
   logBtn.setAttribute('aria-haspopup', 'dialog');
   logBtn.addEventListener('click', () => {
-    if (!paused && !state.gameOver) logbook.toggle();
+    if (!paused && !state.gameOver) {
+      logbook.update(entries, earnedBadges, { ...state, ...stats, earnedBadges });
+      logbook.toggle();
+    }
   });
   scanWrap.appendChild(logBtn);
   hudEl.appendChild(scanWrap);
@@ -382,12 +386,16 @@ function boot(): void {
     }
     // Award before the end screen, including the cycle badge on the victory frame.
     updateBadges();
-    hud.update(state);
+    const stormWarning = alerts.update(schedule, state.elapsed, state.stormRemaining);
+    hud.update(state, stormWarning);
+    const stageCount = progress.stageIndex === 0 ? Math.min(stats.depositsCollected, 3)
+      : progress.stageIndex === 1 ? Math.min(state.stormsSurvived, 1)
+      : Math.min(state.stormsSurvived, 3);
+    hud.setProgress(progress.allDone ? 3 : stageCount, progress.stageIndex === 1 ? 1 : 3);
     objectives.update(state, stats, progress, now);
     // Keep the opener focusable while the native modal owns focus, so closing
     // with Escape restores focus to LOG rather than dropping it onto the page.
     logBtn.disabled = state.gameOver;
-    alerts.update(schedule, state.elapsed, state.stormRemaining);
 
     // First-time announcements play the storm alarm once per event.
     for (const storm of schedule) {
@@ -415,7 +423,7 @@ function boot(): void {
     if (!paused && !state.gameOver) {
       for (const deposit of scanner?.nearby(player.getPosition()) ?? []) collect(deposit);
     }
-    scanner?.update(delta);
+    scanner?.update(delta, game.cameraRig.camera);
     slots.forEach((slot) => slot.update(paused ? 0 : delta));
     roverCondition.update(paused ? 0 : delta);
     updateInteraction();
